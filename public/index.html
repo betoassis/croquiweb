@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Croqui Web - Agentes de Combate às Endemias</title>
+  <meta name="description" content="Sistema de consulta e gerenciamento de croquis em PDF para Agentes de Combate às Endemias (ACE).">
+  
+  <!-- CSS Stylesheets -->
+  <link rel="stylesheet" href="/css/variables.css">
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+
+  <!-- TOP NAVIGATION BAR -->
+  <header class="navbar">
+    <a href="#" class="navbar-brand" id="brand-link">
+      <div class="logo-icon">🗺️</div>
+      <div>
+        <span>Croqui Web</span>
+        <div style="font-size: 0.68rem; color: var(--text-light); font-weight: 500;">Combate às Endemias (ACE)</div>
+      </div>
+    </a>
+
+    <ul class="navbar-nav">
+      <li>
+        <a href="#public" class="nav-link active" id="nav-public">🔍 Consulta Pública</a>
+      </li>
+      <li>
+        <a href="#admin" class="nav-link" id="nav-admin" style="display: none;">⚙️ Área Administrativa</a>
+      </li>
+    </ul>
+
+    <div id="nav-auth-container">
+      <button class="btn-admin-login" id="btn-open-login">
+        🔑 Entrar / Logar
+      </button>
+    </div>
+  </header>
+
+  <!-- AUTH REQUIRED GATEWAY CONTAINER (Exibido quando não logado) -->
+  <main class="container" id="auth-required-view" style="display: none; text-align: center; padding: 4rem 1.5rem;">
+    <div style="max-width: 540px; margin: 0 auto; background: var(--bg-card); padding: 2.5rem; border-radius: var(--radius-lg); border: 1px solid var(--border-color); box-shadow: var(--shadow-md);">
+      <div style="font-size: 3.5rem; margin-bottom: 1rem;">🔐</div>
+      <h2 style="font-size: 1.6rem; color: var(--text-main); margin-bottom: 0.75rem;">Acesso Restrito ao Sistema</h2>
+      <p style="color: var(--text-muted); font-size: 0.98rem; line-height: 1.6; margin-bottom: 2rem;">
+        Para consultar os croquis de campo e utilizar as ferramentas do Croqui Web, é necessário realizar o login ou solicitar o seu cadastro público.
+      </p>
+      <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+        <button class="btn-primary" id="btn-gate-open-login" style="padding: 0.75rem 1.5rem; font-size: 1rem;">
+          🔑 Fazer Login
+        </button>
+        <button class="btn-secondary" id="btn-gate-open-register" style="padding: 0.75rem 1.5rem; font-size: 1rem;">
+          📝 Solicitar Acesso Público
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <!-- PUBLIC VIEW CONTAINER (Exibido apenas para usuários autenticados) -->
+  <main class="container" id="public-view" style="display: none;">
+    <!-- HERO SEARCH SECTION -->
+    <section class="hero-search">
+      <h1 class="hero-title">Gerenciamento e Consulta de Croquis</h1>
+      <p class="hero-subtitle">Consulte rapidamente os mapas em PDF por Bairro, Região ou Quarteirão para planejamento de campo dos Agentes de Endemias.</p>
+      
+      <div class="search-box-group">
+        <div class="search-input-wrapper">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="public-search-input" placeholder="Digite o Bairro, SISLOC (Código), Região ou Quantidade de Quarteirões (ex: 001, Centro)..." autocomplete="off">
+        </div>
+        
+        <div class="filters-row">
+          <select id="filter-bairro" class="filter-select">
+            <option value="">Todos os Bairros</option>
+          </select>
+          <select id="filter-regiao" class="filter-select">
+            <option value="">Todas as Regiões</option>
+          </select>
+          <button class="btn-card btn-view" id="btn-clear-filters" style="width: auto; padding: 0.65rem 1rem;">
+            🔄 Limpar Filtros
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- RESULTS HEADER -->
+    <div class="results-header">
+      <div class="results-count">
+        Documentos Disponíveis <span class="badge-count" id="croquis-count">0</span>
+      </div>
+      <div>
+        <button class="fav-btn" id="btn-filter-favorites" title="Ver somente favoritados">
+          ⭐ Favoritos
+        </button>
+      </div>
+    </div>
+
+    <!-- CROQUIS GRID CONTAINER -->
+    <section class="croquis-grid" id="croquis-grid">
+      <!-- Dynamic Croqui Cards rendered via JS -->
+    </section>
+
+    <!-- EMPTY STATE -->
+    <div class="empty-state" id="empty-state" style="display: none;">
+      <div class="empty-icon">📁</div>
+      <h3 class="empty-title">Nenhum croqui encontrado</h3>
+      <p class="empty-subtitle">Tente buscar por outros termos ou limpar os filtros selecionados.</p>
+    </div>
+  </main>
+
+  <!-- ADMINISTRATIVE AREA CONTAINER -->
+  <div class="admin-container" id="admin-view" style="display: none;">
+    <!-- SIDEBAR -->
+    <aside class="admin-sidebar">
+      <div>
+        <div class="sidebar-header">
+          <span class="sidebar-badge">Painel Admin</span>
+          <div class="sidebar-user" id="admin-user-name">Administrador ACE</div>
+        </div>
+
+        <ul class="sidebar-menu">
+          <li class="sidebar-item">
+            <button class="sidebar-link active" id="side-tab-dash">
+              📊 Dashboard
+            </button>
+          </li>
+          <li class="sidebar-item">
+            <button class="sidebar-link" id="side-tab-croquis">
+              📁 Gerenciar Croquis
+            </button>
+          </li>
+          <li class="sidebar-item">
+            <button class="sidebar-link" id="side-tab-users">
+              👥 Gestão de Usuários
+            </button>
+          </li>
+          <li class="sidebar-item">
+            <button class="sidebar-link" id="side-tab-ext">
+              🧩 Módulos & Extensões
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <div class="sidebar-footer">
+        <button class="btn-logout" id="btn-logout">
+          🚪 Sair da Sessão
+        </button>
+      </div>
+    </aside>
+
+    <!-- ADMIN CONTENT MAIN -->
+    <main class="admin-content">
+      <!-- SUB-VIEW 1: DASHBOARD -->
+      <section id="admin-section-dashboard">
+        <div class="admin-header">
+          <div>
+            <h2 class="admin-title">Dashboard de Croquis</h2>
+            <p style="color: var(--text-muted); font-size: 0.9rem;">Visão geral das estatísticas e uso dos mapas cadastrados.</p>
+          </div>
+          <button class="btn-add-croqui" id="btn-open-upload-dash">
+            ➕ Cadastrar Novo Croqui
+          </button>
+        </div>
+
+        <!-- STATS CARDS GRID -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon primary">🗺️</div>
+            <div>
+              <div class="stat-label">Total de PDFs</div>
+              <div class="stat-value" id="stat-total-pdf">0</div>
+              <div class="stat-subtext">Croquis cadastrados</div>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon amber">🏘️</div>
+            <div>
+              <div class="stat-label">Bairros</div>
+              <div class="stat-value" id="stat-bairros">0</div>
+              <div class="stat-subtext">Bairros atendidos</div>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon blue">👁️</div>
+            <div>
+              <div class="stat-label">Visualizações</div>
+              <div class="stat-value" id="stat-views">0</div>
+              <div class="stat-subtext">Consultas realizadas</div>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon green">📥</div>
+            <div>
+              <div class="stat-label">Downloads</div>
+              <div class="stat-value" id="stat-downloads">0</div>
+              <div class="stat-subtext">Downloads efetuados</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RECENT ACTIVITY CARD -->
+        <div class="table-card" style="margin-bottom: 2rem; padding: 1.25rem;">
+          <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem;">📅 Última Atualização no Servidor</h3>
+          <p style="font-size: 0.95rem; color: var(--text-muted);" id="stat-last-upload">Nenhum upload registrado.</p>
+        </div>
+      </section>
+
+      <!-- SUB-VIEW 2: GERENCIAR CROQUIS TABLE -->
+      <section id="admin-section-croquis" style="display: none;">
+        <div class="admin-header">
+          <div>
+            <h2 class="admin-title">Gerenciamento de Croquis</h2>
+            <p style="color: var(--text-muted); font-size: 0.9rem;">Cadastre, edite, substitua arquivos PDF ou remova croquis existentes.</p>
+          </div>
+          <button class="btn-add-croqui" id="btn-open-upload">
+            ➕ Cadastrar Novo Croqui
+          </button>
+        </div>
+
+        <div class="table-card">
+          <div class="table-header-bar" style="flex-wrap: wrap;">
+            <span class="table-title">Lista de Documentos</span>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+              <select id="admin-filter-bairro" class="table-search" style="max-width: 170px;">
+                <option value="">Todos os Bairros</option>
+              </select>
+              <select id="admin-filter-regiao" class="table-search" style="max-width: 170px;">
+                <option value="">Todas as Regiões</option>
+              </select>
+              <input type="text" id="admin-table-search" class="table-search" placeholder="Filtrar texto ou SISLOC...">
+              <button id="btn-admin-clear-filters" class="btn-secondary" style="padding: 0.45rem 0.75rem; font-size: 0.85rem;">
+                🔄 Limpar
+              </button>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>SISLOC</th>
+                  <th>Bairro</th>
+                  <th>Região</th>
+                  <th>Qtd. de Quarteirões</th>
+                  <th>Observações</th>
+                  <th>Vis. / Down.</th>
+                  <th>Atualização</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="admin-table-body">
+                <!-- Admin Table rows rendered via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- SUB-VIEW 3: GESTÃO DE USUÁRIOS & APROVAÇÃO -->
+      <section id="admin-section-users" style="display: none;">
+        <div class="admin-header">
+          <div>
+            <h2 class="admin-title">Gestão de Usuários & Aprovações</h2>
+            <p style="color: var(--text-muted); font-size: 0.9rem;">Gerencie o acesso de usuários, promova administradores e analise solicitações pendentes.</p>
+          </div>
+          <button class="btn-add-croqui" id="btn-open-create-admin" style="background-color: var(--secondary-light);">
+            ⭐ Cadastrar Novo Admin
+          </button>
+        </div>
+
+        <div class="table-card">
+          <div class="table-header-bar" style="flex-wrap: wrap;">
+            <span class="table-title">Gerenciamento de Contas e Solicitações</span>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+              <select id="admin-filter-user-status" class="table-search" style="max-width: 200px;">
+                <option value="">Todos os Status</option>
+                <option value="pending" selected>🕒 Pendentes de Aprovação</option>
+                <option value="approved">✅ Aprovados</option>
+                <option value="rejected">❌ Rejeitados</option>
+              </select>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Nome Completo</th>
+                  <th>Usuário</th>
+                  <th>CPF</th>
+                  <th>Ano Nasc.</th>
+                  <th>Perfil</th>
+                  <th>Status</th>
+                  <th>Data Solicitação</th>
+                  <th>Ações de Aprovação</th>
+                </tr>
+              </thead>
+              <tbody id="admin-users-table-body">
+                <!-- User rows rendered via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- SUB-VIEW 4: EXTENSIONS / MODULAR FEATURES -->
+      <section id="admin-section-extensions" style="display: none;">
+        <div class="admin-header">
+          <div>
+            <h2 class="admin-title">Módulos & Funcionalidades Futuras</h2>
+            <p style="color: var(--text-muted); font-size: 0.9rem;">Arquitetura modular estruturada para futuras expansões do sistema ACE.</p>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon amber">⭐</div>
+            <div>
+              <div class="stat-label">Favoritos</div>
+              <div style="font-size: 0.9rem; margin-top: 0.2rem;">Permite aos agentes marcarem quarteirões mais visitados no dispositivo.</div>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon blue">📲</div>
+            <div>
+              <div class="stat-label">QR Code para Campo</div>
+              <div style="font-size: 0.9rem; margin-top: 0.2rem;">Geração dinâmica de QR Code para leitura rápida em pranchetas ou adesivos.</div>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon green">📜</div>
+            <div>
+              <div class="stat-label">Histórico de Alterações</div>
+              <div style="font-size: 0.9rem; margin-top: 0.2rem;">Controle de versões e auditoria das atualizações dos mapas em PDF.</div>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon primary">⚡</div>
+            <div>
+              <div class="stat-label">Modo Offline (PWA)</div>
+              <div style="font-size: 0.9rem; margin-top: 0.2rem;">Suporte para armazenamento local dos croquis durante visitas sem sinal de internet.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- MODAL: LOGIN ADMIN -->
+  <div class="modal-backdrop" id="modal-login">
+    <div class="modal-container" style="max-width: 420px;">
+      <div class="modal-header">
+        <span class="modal-title">🔐 Acesso ao Sistema</span>
+        <button class="modal-close btn-close-modal">&times;</button>
+      </div>
+      <form id="form-login">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="login-username">Usuário</label>
+            <input type="text" id="login-username" class="form-control" placeholder="Digite seu usuário..." required>
+          </div>
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+              <label class="form-label" for="login-password" style="margin-bottom: 0;">Senha</label>
+              <button type="button" id="btn-open-forgot-password" style="background: none; border: none; color: var(--primary); font-size: 0.82rem; font-weight: 600; cursor: pointer; text-decoration: underline;">
+                Esqueceu a senha?
+              </button>
+            </div>
+            <input type="password" id="login-password" class="form-control" placeholder="••••••••" required>
+          </div>
+          <div id="login-error" style="color: var(--danger); font-size: 0.85rem; display: none; margin-top: 0.5rem; line-height: 1.4;"></div>
+        </div>
+        <div class="modal-footer" style="flex-direction: column; gap: 0.75rem; align-items: stretch;">
+          <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+            <button type="button" class="btn-secondary btn-close-modal">Cancelar</button>
+            <button type="submit" class="btn-primary">Entrar no Sistema</button>
+          </div>
+          <div style="text-align: center; border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
+            <span style="font-size: 0.85rem; color: var(--text-muted);">Não possui uma conta? </span>
+            <button type="button" id="btn-switch-to-register" style="background: none; border: none; color: var(--primary); font-weight: 600; cursor: pointer; text-decoration: underline;">
+              Solicitar Acesso Público
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: RECUPERAÇÃO DE SENHA (CPF + ANO NASCIMENTO) -->
+  <div class="modal-backdrop" id="modal-forgot-password">
+    <div class="modal-container" style="max-width: 440px;">
+      <div class="modal-header">
+        <span class="modal-title">🔑 Recuperar Senha</span>
+        <button class="modal-close class-close-forgot">&times;</button>
+      </div>
+      <form id="form-forgot-password">
+        <div class="modal-body">
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem; line-height: 1.5;">
+            Informe seu usuário, CPF e ano de nascimento para confirmar sua identidade e cadastrar uma nova senha.
+          </p>
+
+          <div class="form-group">
+            <label class="form-label" for="reset-username">Usuário (Login) *</label>
+            <input type="text" id="reset-username" class="form-control" placeholder="Digite seu nome de usuário..." required>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="reset-cpf">CPF *</label>
+              <input type="text" id="reset-cpf" class="form-control" placeholder="000.000.000-00" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="reset-birth-year">Ano de Nascimento *</label>
+              <input type="number" id="reset-birth-year" class="form-control" placeholder="ex: 1985" min="1920" max="2010" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="reset-new-password">Nova Senha *</label>
+            <input type="password" id="reset-new-password" class="form-control" placeholder="Digite sua nova senha..." required minlength="4">
+          </div>
+
+          <div id="forgot-error" style="color: var(--danger); font-size: 0.85rem; display: none; margin-top: 0.5rem; line-height: 1.4;"></div>
+          <div id="forgot-success" style="color: var(--success); font-size: 0.85rem; display: none; margin-top: 0.5rem; line-height: 1.4;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary class-close-forgot">Cancelar</button>
+          <button type="submit" id="btn-submit-forgot" class="btn-primary">Redefinir Senha</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: CADASTRO DE USUÁRIO PÚBLICO (CPF + ANO NASCIMENTO) -->
+  <div class="modal-backdrop" id="modal-register">
+    <div class="modal-container" style="max-width: 480px;">
+      <div class="modal-header">
+        <span class="modal-title">📝 Solicitar Acesso Público</span>
+        <button class="modal-close btn-close-register">&times;</button>
+      </div>
+      <form id="form-register">
+        <div class="modal-body">
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+            Preencha seus dados reais para solicitar acesso ao sistema. O seu cadastro passará por análise e aprovação do Administrador.
+          </p>
+
+          <div class="form-group">
+            <label class="form-label" for="reg-name">Nome Completo *</label>
+            <input type="text" id="reg-name" class="form-control" placeholder="Ex: João da Silva" required>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="reg-username">Nome de Usuário *</label>
+              <input type="text" id="reg-username" class="form-control" placeholder="Ex: joaosilva" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="reg-password">Senha *</label>
+              <input type="password" id="reg-password" class="form-control" placeholder="••••••••" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="reg-cpf">CPF (Obrigatório) *</label>
+              <input type="text" id="reg-cpf" class="form-control" placeholder="000.000.000-00" maxlength="14" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="reg-birth-year">Ano de Nascimento *</label>
+              <input type="number" id="reg-birth-year" class="form-control" placeholder="Ex: 1990" min="1920" max="2012" required>
+            </div>
+          </div>
+
+          <div id="register-error" style="color: var(--danger); font-size: 0.85rem; display: none; margin-top: 0.5rem; line-height: 1.4;"></div>
+          <div id="register-success" style="color: var(--success); font-size: 0.88rem; display: none; margin-top: 0.5rem; line-height: 1.4; font-weight: 500;"></div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary btn-close-register">Cancelar</button>
+          <button type="submit" class="btn-primary" id="btn-submit-register">Enviar Solicitação</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: CADASTRAR CROQUI -->
+  <div class="modal-backdrop" id="modal-upload">
+    <div class="modal-container">
+      <div class="modal-header">
+        <span class="modal-title">➕ Cadastrar Novo Croqui</span>
+        <button class="modal-close class-close-upload">&times;</button>
+      </div>
+      <form id="form-upload">
+        <div class="modal-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="upload-bairro">Bairro *</label>
+              <input type="text" id="upload-bairro" class="form-control" placeholder="Ex: Centro" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="upload-sisloc">SISLOC (Código) *</label>
+              <input type="text" id="upload-sisloc" class="form-control" placeholder="Ex: 001" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="upload-regiao">Região *</label>
+              <input type="text" id="upload-regiao" class="form-control" placeholder="Ex: Região Central" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="upload-quarteirao">Qtd. de Quarteirões (Número) *</label>
+              <input type="number" id="upload-quarteirao" class="form-control" placeholder="Ex: 36" min="1" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="upload-observacoes">Observações / Pontos de Referência</label>
+            <textarea id="upload-observacoes" class="form-control" placeholder="Descreva os limites, particularidades ou foco do quarteirão..."></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="upload-pdf">Arquivo PDF do Croqui *</label>
+            <input type="file" id="upload-pdf" class="form-control" accept="application/pdf" required>
+          </div>
+          <div id="upload-error" style="color: var(--danger); font-size: 0.85rem; display: none;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary class-close-upload">Cancelar</button>
+          <button type="submit" class="btn-primary" id="btn-save-upload">Salvar Croqui</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: EDITAR METADADOS -->
+  <div class="modal-backdrop" id="modal-edit">
+    <div class="modal-container">
+      <div class="modal-header">
+        <span class="modal-title">✏️ Editar Metadados do Croqui</span>
+        <button class="modal-close class-close-edit">&times;</button>
+      </div>
+      <form id="form-edit">
+        <input type="hidden" id="edit-id">
+        <div class="modal-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="edit-bairro">Bairro *</label>
+              <input type="text" id="edit-bairro" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="edit-sisloc">SISLOC (Código) *</label>
+              <input type="text" id="edit-sisloc" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="edit-regiao">Região *</label>
+              <input type="text" id="edit-regiao" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="edit-quarteirao">Qtd. de Quarteirões (Número) *</label>
+              <input type="number" id="edit-quarteirao" class="form-control" placeholder="Ex: 36" min="1" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="edit-observacoes">Observações</label>
+            <textarea id="edit-observacoes" class="form-control"></textarea>
+          </div>
+          <div id="edit-error" style="color: var(--danger); font-size: 0.85rem; display: none;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary class-close-edit">Cancelar</button>
+          <button type="submit" class="btn-primary">Salvar Alterações</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: SUBSTITUIR PDF -->
+  <div class="modal-backdrop" id="modal-replace">
+    <div class="modal-container" style="max-width: 480px;">
+      <div class="modal-header">
+        <span class="modal-title">🔄 Substituir Arquivo PDF</span>
+        <button class="modal-close class-close-replace">&times;</button>
+      </div>
+      <form id="form-replace">
+        <input type="hidden" id="replace-id">
+        <div class="modal-body">
+          <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem;">
+            Selecione o novo mapa em PDF para atualizar o arquivo do quarteirão <strong id="replace-quarteirao-title"></strong>. O arquivo anterior será substituído no servidor.
+          </p>
+          <div class="form-group">
+            <label class="form-label" for="replace-pdf">Novo PDF *</label>
+            <input type="file" id="replace-pdf" class="form-control" accept="application/pdf" required>
+          </div>
+          <div id="replace-error" style="color: var(--danger); font-size: 0.85rem; display: none;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary class-close-replace">Cancelar</button>
+          <button type="submit" class="btn-primary">Substituir Arquivo</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: VISUALIZAR PDF -->
+  <div class="modal-backdrop" id="modal-pdf-viewer">
+    <div class="modal-container pdf-viewer-modal">
+      <div class="modal-header">
+        <span class="modal-title" id="pdf-viewer-title">Visualizar Croqui</span>
+        <button class="modal-close" id="btn-close-pdf">&times;</button>
+      </div>
+      <div class="pdf-toolbar">
+        <div class="pdf-toolbar-group">
+          <span>Tamanho: <strong id="pdf-viewer-size">--</strong></span>
+        </div>
+        <div class="pdf-toolbar-group">
+          <a id="btn-pdf-modal-download" href="#" class="btn-pdf-tool" style="text-decoration: none;">📥 Baixar PDF</a>
+          <button id="btn-pdf-modal-qr" class="btn-pdf-tool">📲 Gerar QR Code</button>
+        </div>
+      </div>
+      <div class="pdf-viewer-body modal-body">
+        <iframe id="pdf-iframe" class="pdf-frame-container" src="about:blank"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: QR CODE -->
+  <div class="modal-backdrop" id="modal-qrcode">
+    <div class="modal-container" style="max-width: 400px; text-align: center;">
+      <div class="modal-header">
+        <span class="modal-title">📲 QR Code do Croqui</span>
+        <button class="modal-close" id="btn-close-qr">&times;</button>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; align-items: center; gap: 1rem;">
+        <h4 id="qr-title" style="font-size: 1.1rem; color: var(--text-main);"></h4>
+        <div id="qr-container" style="padding: 1rem; background: #fff; border: 1px solid var(--border-color); border-radius: var(--radius-md);"></div>
+        <p style="font-size: 0.85rem; color: var(--text-muted);">Escaneie com a câmera do celular para abrir a consulta direta deste quarteirão.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CADASTRO DE NOVO ADMINISTRADOR -->
+  <div class="modal-backdrop" id="modal-create-admin">
+    <div class="modal-container" style="max-width: 480px;">
+      <div class="modal-header">
+        <span class="modal-title">⭐ Cadastrar Novo Administrador</span>
+        <button class="modal-close class-close-create-admin">&times;</button>
+      </div>
+      <form id="form-create-admin">
+        <div class="modal-body">
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+            Cadastre diretamente um novo usuário com privilégios completos de Administrador do sistema.
+          </p>
+
+          <div class="form-group">
+            <label class="form-label" for="admin-name">Nome Completo *</label>
+            <input type="text" id="admin-name" class="form-control" placeholder="ex: Alberto Assis" required>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="admin-username">Usuário (Login) *</label>
+              <input type="text" id="admin-username" class="form-control" placeholder="ex: alberto.admin" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="admin-password">Senha *</label>
+              <input type="password" id="admin-password" class="form-control" placeholder="••••••••" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="admin-cpf">CPF *</label>
+              <input type="text" id="admin-cpf" class="form-control" placeholder="000.000.000-00" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="admin-birth-year">Ano de Nascimento *</label>
+              <input type="number" id="admin-birth-year" class="form-control" placeholder="ex: 1985" min="1920" max="2010" required>
+            </div>
+          </div>
+
+          <div id="create-admin-error" style="color: var(--danger); font-size: 0.85rem; display: none; margin-top: 0.5rem;"></div>
+          <div id="create-admin-success" style="color: var(--success); font-size: 0.85rem; display: none; margin-top: 0.5rem;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary class-close-create-admin">Cancelar</button>
+          <button type="submit" id="btn-submit-create-admin" class="btn-primary">Criar Administrador</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <p><strong>Croqui Web</strong> - Sistema de Apoio ao Agente de Combate às Endemias (ACE)</p>
+    <p style="font-size: 0.82rem; margin-top: 0.35rem; color: var(--text-light);">
+      Desenvolvido por <strong>Alberto Assis</strong> | Organização, consulta rápida e gestão territorial dos mapas municipais.
+    </p>
+  </footer>
+
+  <!-- JS Scripts -->
+  <script src="/js/modules/index.js"></script>
+  <script src="/js/pdf-viewer.js"></script>
+  <script src="/js/admin.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

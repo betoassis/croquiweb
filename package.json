@@ -1,0 +1,32 @@
+{
+  "name": "croqui-web",
+  "version": "1.0.0",
+  "description": "Gerenciamento e consulta de croquis em PDF para Agentes de Combate às Endemias (ACE)",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node tests/api.test.js",
+    "db:migrate": "node scripts/migrate-to-supabase.js"
+  },
+  "keywords": [
+    "croqui",
+    "ace",
+    "endemias",
+    "pdf",
+    "geoprocessamento",
+    "quarteirao"
+  ],
+  "author": "Croqui Web Team",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.112.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1"
+  }
+}

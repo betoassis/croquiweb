@@ -1,0 +1,100 @@
+{
+  "admin": {
+    "username": "admin",
+    "passwordHash": "$2a$10$8GhiQRpeLE3PYFvfkm8Sre4OD4X0nSV4w9EwudMtefFrBze0LJxQO",
+    "name": "Administrador ACE"
+  },
+  "croquis": [
+    {
+      "id": "croqui-1785837246912-55",
+      "bairro": "Monte Castelo",
+      "sisloc": "037",
+      "regiao": "Norte",
+      "quarteirao": "32",
+      "observacoes": "",
+      "filename": "Monte Castelo - SISLOC - 037 2017-05-03.pdf",
+      "filepath": "/uploads/monte-castelo/norte/1785837246903-937-monte-castelo-sisloc-037-2017-05-03.pdf",
+      "file_size": 627541,
+      "views": 4,
+      "downloads": 1,
+      "created_at": "2026-08-04T09:54:06.912Z",
+      "updated_at": "2026-08-04T09:54:06.912Z"
+    },
+    {
+      "id": "croqui-1785818776762-52",
+      "bairro": "Esplanada",
+      "sisloc": "036",
+      "regiao": "Norte",
+      "quarteirao": "16",
+      "observacoes": "Criado em 04/04/2017",
+      "filename": "Esplanada - SISLOC - 036 2017-05-03.pdf",
+      "filepath": "/uploads/esplanada/norte/1785818776753-9816-esplanada-sisloc-036-2017-05-03.pdf",
+      "file_size": 560473,
+      "views": 1,
+      "downloads": 0,
+      "created_at": "2026-08-04T04:46:16.762Z",
+      "updated_at": "2026-08-04T04:46:16.762Z"
+    },
+    {
+      "id": "croqui-1785817765179-471",
+      "bairro": "Barbosa Lage",
+      "sisloc": "025",
+      "regiao": "Norte",
+      "quarteirao": "36",
+      "observacoes": "Criado em 10/09/2024",
+      "filename": "Barbosa Lage Sisloc 025 2016-12-28.pdf",
+      "filepath": "/uploads/barbaosa-lage/norte/1785817765167-8834-barbosa-lage-sisloc-025-2016-12-28.pdf",
+      "file_size": 570023,
+      "views": 2,
+      "downloads": 1,
+      "created_at": "2026-08-04T04:29:25.179Z",
+      "updated_at": "2026-08-04T04:37:43.031Z"
+    },
+    {
+      "id": "croqui-demo-1",
+      "bairro": "Centro",
+      "sisloc": "001",
+      "regiao": "Região Central",
+      "quarteirao": "15 Quarteirões",
+      "observacoes": "Croqui geral do Bairro Centro composto por 15 quarteirões comerciais e residenciais.",
+      "filename": "croqui_centro_q01.pdf",
+      "filepath": "/uploads/centro/regiao-central/demo-croqui-centro-q01.pdf",
+      "file_size": 245760,
+      "views": 14,
+      "downloads": 6,
+      "created_at": "2026-08-01T04:22:54.874Z",
+      "updated_at": "2026-08-01T04:22:54.875Z"
+    },
+    {
+      "id": "croqui-demo-2",
+      "bairro": "São José",
+      "sisloc": "045",
+      "regiao": "Região Norte",
+      "quarteirao": "22 Quarteirões",
+      "observacoes": "Bairro residencial São José com 22 quarteirões e presença de terrenos baldios.",
+      "filename": "croqui_sao_jose_q14.pdf",
+      "filepath": "/uploads/sao-jose/regiao-norte/demo-croqui-sao-jose-q14.pdf",
+      "file_size": 312000,
+      "views": 29,
+      "downloads": 12,
+      "created_at": "2026-08-02T04:22:54.875Z",
+      "updated_at": "2026-08-02T04:22:54.875Z"
+    },
+    {
+      "id": "croqui-demo-3",
+      "bairro": "Jardim América",
+      "sisloc": "102",
+      "regiao": "Região Sul",
+      "quarteirao": "10 Quarteirões",
+      "observacoes": "Croqui do Jardim América contendo 10 quarteirões de médio porte. Foco em inspeção de caixas d'água.",
+      "filename": "croqui_jardim_america_q08.pdf",
+      "filepath": "/uploads/jardim-america/regiao-sul/demo-croqui-jardim-america-q08.pdf",
+      "file_size": 189440,
+      "views": 9,
+      "downloads": 4,
+      "created_at": "2026-08-03T04:22:54.875Z",
+      "updated_at": "2026-08-03T04:22:54.875Z"
+    }
+  ],
+  "history": []
+}
