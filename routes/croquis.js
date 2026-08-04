@@ -52,7 +52,6 @@ router.post('/', authenticateAdmin, upload.single('pdf'), async (req, res) => {
     const { bairro, sisloc, regiao, quarteirao, observacoes } = req.body;
 
     if (!bairro || !regiao || !quarteirao) {
-      if (req.file) removeFile(req.file.path);
       return res.status(400).json({ error: 'Bairro, Região e Quarteirão são campos obrigatórios.' });
     }
 
@@ -60,19 +59,37 @@ router.post('/', authenticateAdmin, upload.single('pdf'), async (req, res) => {
       return res.status(400).json({ error: 'É necessário anexar um arquivo PDF para o croqui.' });
     }
 
-    let filePath = req.file.path.replace(path.join(__dirname, '..'), '').replace(/\\/g, '/');
+    const fileBuffer = req.file.buffer || (req.file.path ? fs.readFileSync(req.file.path) : null);
+    const fileName = req.file.originalname;
+    const fileSize = req.file.size;
+    let filePath = '';
 
-    // Se o Supabase estiver configurado, envia também o arquivo para o Supabase Storage na nuvem
-    if (isSupabaseConfigured()) {
+    if (isSupabaseConfigured() && fileBuffer) {
       try {
-        const fileBuffer = fs.readFileSync(req.file.path);
-        const storagePath = `croquis/${Date.now()}-${req.file.originalname}`;
-        const uploaded = await uploadPdfToStorage(storagePath, fileBuffer, req.file.mimetype);
+        const storagePath = `croquis/${Date.now()}-${fileName}`;
+        const uploaded = await uploadPdfToStorage(storagePath, fileBuffer, req.file.mimetype || 'application/pdf');
         if (uploaded && uploaded.publicUrl) {
           filePath = uploaded.publicUrl;
         }
       } catch (storageErr) {
-        console.warn('⚠️ Não foi possível salvar no Supabase Storage. Mantendo caminho local:', storageErr.message);
+        console.warn('⚠️ Falha ao salvar no Supabase Storage:', storageErr.message);
+      }
+    }
+
+    if (!filePath) {
+      try {
+        const bairroFolder = (bairro || 'geral').toLowerCase().replace(/\s+/g, '-');
+        const regiaoFolder = (regiao || 'geral').toLowerCase().replace(/\s+/g, '-');
+        const localDir = path.join(__dirname, '..', 'uploads', bairroFolder, regiaoFolder);
+        if (!fs.existsSync(localDir)) {
+          fs.mkdirSync(localDir, { recursive: true });
+        }
+        const localFileName = `${Date.now()}-${fileName}`;
+        const fullLocalPath = path.join(localDir, localFileName);
+        if (fileBuffer) fs.writeFileSync(fullLocalPath, fileBuffer);
+        filePath = `/uploads/${bairroFolder}/${regiaoFolder}/${localFileName}`;
+      } catch (localErr) {
+        console.warn('⚠️ Aviso ao gravar arquivo localmente:', localErr.message);
       }
     }
 
@@ -82,9 +99,9 @@ router.post('/', authenticateAdmin, upload.single('pdf'), async (req, res) => {
       regiao,
       quarteirao,
       observacoes: observacoes || '',
-      filename: req.file.originalname,
+      filename: fileName,
       filepath: filePath,
-      file_size: req.file.size
+      file_size: fileSize
     });
 
     return res.status(201).json({
@@ -131,7 +148,6 @@ router.post('/:id/replace', authenticateAdmin, upload.single('pdf'), async (req,
     const existing = await db.getCroquiByIdAsync(req.params.id);
 
     if (!existing) {
-      if (req.file) removeFile(req.file.path);
       return res.status(404).json({ error: 'Croqui não encontrado.' });
     }
 
@@ -139,30 +155,31 @@ router.post('/:id/replace', authenticateAdmin, upload.single('pdf'), async (req,
       return res.status(400).json({ error: 'Selecione um novo arquivo PDF para substituição.' });
     }
 
-    // Remover arquivo local antigo se existir
-    if (!existing.filepath.startsWith('http')) {
-      removeFile(existing.filepath);
-    }
+    const fileBuffer = req.file.buffer || (req.file.path ? fs.readFileSync(req.file.path) : null);
+    const fileName = req.file.originalname;
+    const fileSize = req.file.size;
+    let filePath = '';
 
-    let filePath = req.file.path.replace(path.join(__dirname, '..'), '').replace(/\\/g, '/');
-
-    if (isSupabaseConfigured()) {
+    if (isSupabaseConfigured() && fileBuffer) {
       try {
-        const fileBuffer = fs.readFileSync(req.file.path);
-        const storagePath = `croquis/${Date.now()}-${req.file.originalname}`;
-        const uploaded = await uploadPdfToStorage(storagePath, fileBuffer, req.file.mimetype);
+        const storagePath = `croquis/${Date.now()}-${fileName}`;
+        const uploaded = await uploadPdfToStorage(storagePath, fileBuffer, req.file.mimetype || 'application/pdf');
         if (uploaded && uploaded.publicUrl) {
           filePath = uploaded.publicUrl;
         }
       } catch (storageErr) {
-        console.warn('⚠️ Não foi possível atualizar no Supabase Storage. Mantendo caminho local:', storageErr.message);
+        console.warn('⚠️ Não foi possível atualizar no Supabase Storage:', storageErr.message);
       }
     }
 
+    if (!filePath) {
+      filePath = existing.filepath;
+    }
+
     const updated = await db.updateCroquiAsync(req.params.id, {
-      filename: req.file.originalname,
+      filename: fileName,
       filepath: filePath,
-      file_size: req.file.size
+      file_size: fileSize
     });
 
     return res.json({
@@ -183,12 +200,20 @@ router.delete('/:id', authenticateAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Croqui não encontrado.' });
     }
 
-    // Remove file from disk or storage
-    if (!existing.filepath.startsWith('http')) {
+    if (existing.filepath && existing.filepath.startsWith('http')) {
+      try {
+        const urlParts = existing.filepath.split('/croquis-pdfs/');
+        if (urlParts.length > 1) {
+          const storagePath = urlParts[1];
+          await deletePdfFromStorage(storagePath);
+        }
+      } catch (storageErr) {
+        console.warn('⚠️ Alerta ao remover do Supabase Storage:', storageErr.message);
+      }
+    } else if (existing.filepath) {
       removeFile(existing.filepath);
     }
 
-    // Delete from DB
     const deleted = await db.deleteCroquiAsync(req.params.id);
 
     return res.json({
