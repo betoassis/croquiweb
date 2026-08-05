@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const path = require('path');
 const fs = require('fs');
+const https = require('https');
+const http = require('http');
 const db = require('../database/db');
 const { isSupabaseConfigured, uploadPdfToStorage, deletePdfFromStorage } = require('../database/supabaseClient');
 const { authenticateAdmin } = require('../middleware/auth');
@@ -20,6 +22,29 @@ function removeFile(relativePath) {
   }
 }
 
+// Helper para obter buffer de PDF remoto (Supabase Storage)
+async function fetchRemoteBuffer(url) {
+  if (typeof fetch === 'function') {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  }
+  return new Promise((resolve, reject) => {
+    const client = url.startsWith('https') ? https : http;
+    client.get(url, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        return fetchRemoteBuffer(res.headers.location).then(resolve).catch(reject);
+      }
+      if (res.statusCode !== 200) return reject(new Error(`HTTP Status ${res.statusCode}`));
+      const chunks = [];
+      res.on('data', chunk => chunks.push(chunk));
+      res.on('end', () => resolve(Buffer.concat(chunks)));
+      res.on('error', reject);
+    }).on('error', reject);
+  });
+}
+
 // GET /api/croquis - Public search & filter
 router.get('/', async (req, res) => {
   try {
@@ -29,6 +54,40 @@ router.get('/', async (req, res) => {
   } catch (err) {
     console.error('Erro ao buscar croquis:', err);
     return res.status(500).json({ error: 'Erro interno ao consultar croquis.' });
+  }
+});
+
+// GET /api/croquis/:id/file - Serve PDF file stream for viewer (Public)
+router.get('/:id/file', async (req, res) => {
+  try {
+    const croqui = await db.getCroquiByIdAsync(req.params.id);
+    if (!croqui || !croqui.filepath) {
+      return res.status(404).json({ error: 'Croqui ou arquivo não encontrado.' });
+    }
+
+    if (croqui.filepath.startsWith('http')) {
+      try {
+        const buffer = await fetchRemoteBuffer(croqui.filepath);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(croqui.filename || 'croqui.pdf')}"`);
+        return res.send(buffer);
+      } catch (cloudErr) {
+        console.error('Erro ao obter PDF remoto do Supabase para visualização:', cloudErr.message);
+        return res.redirect(croqui.filepath);
+      }
+    }
+
+    const fullPath = path.join(__dirname, '..', croqui.filepath);
+    if (fs.existsSync(fullPath)) {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(croqui.filename || 'croqui.pdf')}"`);
+      return res.sendFile(fullPath);
+    } else {
+      return res.status(404).json({ error: 'Arquivo PDF físico não encontrado no servidor.' });
+    }
+  } catch (err) {
+    console.error('Erro ao carregar arquivo do croqui:', err);
+    return res.status(500).json({ error: 'Erro interno ao carregar arquivo.' });
   }
 });
 
@@ -66,7 +125,8 @@ router.post('/', authenticateAdmin, upload.single('pdf'), async (req, res) => {
 
     if (isSupabaseConfigured() && fileBuffer) {
       try {
-        const storagePath = `croquis/${Date.now()}-${fileName}`;
+        const cleanFileName = fileName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9.\-_]/g, '_');
+        const storagePath = `croquis/${Date.now()}-${cleanFileName}`;
         const uploaded = await uploadPdfToStorage(storagePath, fileBuffer, req.file.mimetype || 'application/pdf');
         if (uploaded && uploaded.publicUrl) {
           filePath = uploaded.publicUrl;
@@ -162,7 +222,8 @@ router.post('/:id/replace', authenticateAdmin, upload.single('pdf'), async (req,
 
     if (isSupabaseConfigured() && fileBuffer) {
       try {
-        const storagePath = `croquis/${Date.now()}-${fileName}`;
+        const cleanFileName = fileName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9.\-_]/g, '_');
+        const storagePath = `croquis/${Date.now()}-${cleanFileName}`;
         const uploaded = await uploadPdfToStorage(storagePath, fileBuffer, req.file.mimetype || 'application/pdf');
         if (uploaded && uploaded.publicUrl) {
           filePath = uploaded.publicUrl;
@@ -241,20 +302,27 @@ router.post('/:id/view', async (req, res) => {
 router.post('/:id/download', async (req, res) => {
   try {
     const croqui = await db.getCroquiByIdAsync(req.params.id);
-    if (!croqui) {
+    if (!croqui || !croqui.filepath) {
       return res.status(404).json({ error: 'Croqui não encontrado.' });
     }
 
     await db.incrementDownloadAsync(req.params.id);
 
     if (croqui.filepath.startsWith('http')) {
-      // Redireciona para o Supabase Storage público se o PDF estiver na nuvem
-      return res.redirect(croqui.filepath);
+      try {
+        const buffer = await fetchRemoteBuffer(croqui.filepath);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(croqui.filename || 'croqui.pdf')}"`);
+        return res.send(buffer);
+      } catch (cloudErr) {
+        console.error('Erro ao obter PDF remoto para download:', cloudErr.message);
+        return res.status(404).json({ error: 'Arquivo PDF não encontrado na nuvem.' });
+      }
     }
 
     const fullPath = path.join(__dirname, '..', croqui.filepath);
     if (fs.existsSync(fullPath)) {
-      return res.download(fullPath, croqui.filename);
+      return res.download(fullPath, croqui.filename || 'croqui.pdf');
     } else {
       return res.status(404).json({ error: 'Arquivo PDF físico não encontrado no servidor.' });
     }

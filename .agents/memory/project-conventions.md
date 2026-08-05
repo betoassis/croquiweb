@@ -6,9 +6,10 @@ updated: 2026-07-12
 
 # Project Conventions
 
-## Git Workflow
+## Git & Deployment Workflow
 - Always create a new dedicated branch for major code changes.
 - Branch name format should follow: `feature/[task-slug]` or `fix/[bug-slug]`.
+- Always commit and push changes to GitHub (and trigger Vercel deployment) after completing bug fixes or feature requests.
 
 ## Supported AI platforms (AG Kit)
 - AG Kit **only supports Gemini CLI and Google Antigravity**.

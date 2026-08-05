@@ -26,8 +26,8 @@ window.PdfViewer = (function() {
     titleEl.textContent = `Croqui: ${croqui.bairro} - ${croqui.quarteirao} (${croqui.regiao})`;
     sizeEl.textContent = formatBytes(croqui.file_size);
 
-    // Set iframe source to local PDF path
-    iframe.src = croqui.filepath;
+    // Set iframe source to server file endpoint for reliable streaming
+    iframe.src = `/api/croquis/${croqui.id}/file`;
 
     // Configure modal download button link
     downloadBtn.onclick = (e) => {

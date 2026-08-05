@@ -173,8 +173,15 @@ window.PublicApp = (function() {
 
     // Trigger API call to increment count and download file
     fetch(`/api/croquis/${id}/download`, { method: 'POST' })
-      .then(res => {
-        if (!res.ok) throw new Error('Arquivo não encontrado no servidor');
+      .then(async res => {
+        if (!res.ok) {
+          let errMsg = 'Arquivo não encontrado no servidor';
+          try {
+            const errJson = await res.json();
+            if (errJson && errJson.error) errMsg = errJson.error;
+          } catch(e) {}
+          throw new Error(errMsg);
+        }
         return res.blob();
       })
       .then(blob => {
