@@ -420,10 +420,10 @@ body {
 /* MODAL STYLES */
 .modal-backdrop {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
   background-color: rgba(15, 23, 42, 0.75);
   backdrop-filter: blur(4px);
   display: flex;
@@ -433,6 +433,8 @@ body {
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--transition-fast);
+  padding: 1rem;
+  box-sizing: border-box;
 }
 
 .modal-backdrop.active {
@@ -447,10 +449,19 @@ body {
   width: 92%;
   max-width: 900px;
   max-height: 90vh;
+  max-height: 90dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   animation: modalSlideUp 0.25s ease-out;
+}
+
+.modal-container form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 @keyframes modalSlideUp {
@@ -465,6 +476,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-shrink: 0;
 }
 
 .modal-title {
@@ -491,6 +503,8 @@ body {
   padding: 1.5rem;
   overflow-y: auto;
   flex: 1;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* PDF VIEWER MODAL SPECIFIC */
