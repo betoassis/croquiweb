@@ -38,12 +38,29 @@ async function uploadPdfToStorage(storagePath, fileBuffer, mimeType = 'applicati
     throw new Error('Supabase Storage não está configurado.');
   }
 
-  const { data, error } = await supabase.storage
+  let { data, error } = await supabase.storage
     .from(bucketName)
     .upload(storagePath, fileBuffer, {
       contentType: mimeType,
       upsert: true
     });
+
+  if (error && (error.message?.includes('not found') || error.statusCode === '404' || error.error === 'Bucket not found')) {
+    try {
+      console.log(`🪣 Bucket '${bucketName}' não encontrado no Supabase. Tentando criar bucket público...`);
+      await supabase.storage.createBucket(bucketName, { public: true });
+      const retry = await supabase.storage
+        .from(bucketName)
+        .upload(storagePath, fileBuffer, {
+          contentType: mimeType,
+          upsert: true
+        });
+      data = retry.data;
+      error = retry.error;
+    } catch (createErr) {
+      console.error('Erro ao tentar criar bucket no Supabase:', createErr);
+    }
+  }
 
   if (error) {
     console.error('Erro ao enviar arquivo para o Supabase Storage:', error);
@@ -56,7 +73,7 @@ async function uploadPdfToStorage(storagePath, fileBuffer, mimeType = 'applicati
     .getPublicUrl(storagePath);
 
   return {
-    path: data.path,
+    path: data ? data.path : storagePath,
     publicUrl: publicUrlData ? publicUrlData.publicUrl : ''
   };
 }
