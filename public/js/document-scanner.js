@@ -231,7 +231,10 @@ window.DocumentScannerApp = (function() {
       bl: { x: 0.12, y: 0.92 }
     };
 
-    updateCropHandlesPosition();
+    requestAnimationFrame(() => {
+      updateCropHandlesPosition();
+      setTimeout(updateCropHandlesPosition, 60);
+    });
   }
 
   function showPreviewContainer() {
@@ -540,6 +543,12 @@ window.DocumentScannerApp = (function() {
     window.addEventListener('touchmove', doDrag, { passive: false });
     window.addEventListener('mouseup', stopDrag);
     window.addEventListener('touchend', stopDrag);
+
+    window.addEventListener('resize', () => {
+      if (el.cropEditorContainer() && el.cropEditorContainer().style.display !== 'none') {
+        updateCropHandlesPosition();
+      }
+    });
   }
 
   function updateCropHandlesPosition() {
