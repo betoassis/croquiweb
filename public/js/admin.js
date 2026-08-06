@@ -105,8 +105,25 @@ window.AdminApp = (function() {
     });
   }
 
+  function updateFabVisibility() {
+    const fab = document.getElementById('fab-container');
+    if (!fab) return;
+    const activeModal = document.querySelector('.modal.active');
+    if (token && currentUser && !activeModal) {
+      fab.style.display = 'flex';
+    } else {
+      fab.style.display = 'none';
+      const fabMenu = document.getElementById('fab-menu');
+      const fabMainBtn = document.getElementById('fab-main-btn');
+      if (fabMenu) fabMenu.style.display = 'none';
+      if (fabMainBtn) fabMainBtn.classList.remove('active');
+    }
+  }
+
   function updateNavForPublic() {
+    token = null;
     currentUser = null;
+    updateFabVisibility();
     const navAdmin = el.navAdminBtn();
     if (navAdmin) navAdmin.style.display = 'none';
 
@@ -123,6 +140,7 @@ window.AdminApp = (function() {
 
   function updateNavForAdmin(user) {
     currentUser = user;
+    updateFabVisibility();
     const isAdmin = user && user.role === 'admin';
     const navAdmin = el.navAdminBtn();
     if (navAdmin) {
@@ -864,10 +882,12 @@ window.AdminApp = (function() {
 
   function openModal(m) {
     if (m) m.classList.add('active');
+    updateFabVisibility();
   }
 
   function closeModal(m) {
     if (m) m.classList.remove('active');
+    updateFabVisibility();
   }
 
   function handleCreateAdminSubmit(e) {
@@ -1119,7 +1139,9 @@ window.AdminApp = (function() {
     deleteCroqui,
     updateUserStatus,
     updateUserRole,
-    deleteUser
+    deleteUser,
+    updateFabVisibility,
+    getCurrentUser: () => currentUser
   };
 })();
 

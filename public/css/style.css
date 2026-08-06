@@ -683,8 +683,68 @@ body {
 .scanner-video {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  background-color: #000;
+  cursor: pointer;
 }
+
+/* Floating Zoom & Focus UI Controls */
+.scanner-zoom-btn {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 25;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 20px;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  transition: all 0.2s ease;
+}
+
+.scanner-zoom-btn:hover, .scanner-zoom-btn:active {
+  background: rgba(34, 197, 94, 0.8);
+  border-color: #22c55e;
+}
+
+.scanner-tap-hint {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  background: rgba(0, 0, 0, 0.55);
+  color: rgba(255, 255, 255, 0.85);
+  border-radius: 14px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+}
+
+.scanner-focus-ring {
+  position: absolute;
+  width: 54px;
+  height: 54px;
+  border: 2px solid #22c55e;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 30;
+  transform: translate(-50%, -50%) scale(1.4);
+  opacity: 0;
+  transition: transform 0.25s ease-out, opacity 0.25s ease-out;
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.6);
+}
+
+.scanner-focus-ring.active {
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+}
+
 
 /* Green Highlight Polygon/Box Overlay (WhatsApp Style - Retrato Vertical A4) */
 .scanner-wa-green-overlay {
@@ -863,7 +923,7 @@ body {
   bottom: 2rem;
   right: 2rem;
   z-index: 1000;
-  display: flex;
+  display: none; /* Escondido por padrão, visível apenas quando autenticado */
   flex-direction: column;
   align-items: flex-end;
   gap: 0.75rem;

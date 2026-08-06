@@ -12,6 +12,7 @@ window.DocumentScannerApp = (function() {
   let currentFacingMode = 'environment';
   let isFlashOn = false;
   let activePageIndex = 0;
+  let currentZoomLevel = 1.0;
 
   // Estado da foto bruta em processo de edição/recorte
   let rawCapturedCanvas = null;
@@ -69,6 +70,7 @@ window.DocumentScannerApp = (function() {
     setupListeners();
     setupCropEditorDragHandlers();
     setupFabListeners();
+    setupTapToFocus();
   }
 
   function setupListeners() {
@@ -92,6 +94,7 @@ window.DocumentScannerApp = (function() {
     });
     el.actionFilters()?.addEventListener('click', cycleFilter);
     el.actionFlash()?.addEventListener('click', toggleFlash);
+    document.getElementById('scanner-btn-zoom')?.addEventListener('click', toggleZoomLevel);
 
     el.fileInputNative()?.addEventListener('change', handleNativeFileSelect);
     el.btnAddPageNative()?.addEventListener('click', function() {
@@ -155,9 +158,14 @@ window.DocumentScannerApp = (function() {
     activePageIndex = 0;
     currentFilter = 'bw';
     isFlashOn = false;
+    currentZoomLevel = 1.0;
 
     updateFilterUI();
     updateFooterStripUI();
+    updateZoomBtnUI(1.0);
+
+    const fab = el.fabContainer();
+    if (fab) fab.style.display = 'none';
 
     const modal = el.modal();
     if (modal) {
@@ -175,6 +183,9 @@ window.DocumentScannerApp = (function() {
     if (modal) {
       modal.classList.remove('active');
       modal.style.display = 'none';
+    }
+    if (window.AdminApp && window.AdminApp.updateFabVisibility) {
+      window.AdminApp.updateFabVisibility();
     }
   }
 
@@ -244,18 +255,142 @@ window.DocumentScannerApp = (function() {
       const constraints = {
         video: {
           facingMode: { ideal: currentFacingMode },
-          width: { ideal: 1080 },
-          height: { ideal: 1920 },
-          aspectRatio: { ideal: 9 / 16 }
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
         }
       };
       activeStream = await navigator.mediaDevices.getUserMedia(constraints);
       video.srcObject = activeStream;
       await video.play();
+
+      // Configurar capabilities avançadas de hardware (Zoom 1.0x baseline e Foco Contínuo)
+      const track = activeStream.getVideoTracks()[0];
+      if (track && typeof track.getCapabilities === 'function') {
+        const capabilities = track.getCapabilities();
+        const advancedSpecs = {};
+
+        // Força zoom 1.0x (desativa zoom digital/óptico automático de lentes teleobjetivas)
+        if (capabilities.zoom) {
+          currentZoomLevel = capabilities.zoom.min || 1.0;
+          advancedSpecs.zoom = currentZoomLevel;
+          updateZoomBtnUI(currentZoomLevel);
+        } else {
+          updateZoomBtnUI(1.0);
+        }
+
+        // Ativa Auto-Foco Contínuo para digitalização perfeita de documentos
+        if (capabilities.focusMode && Array.isArray(capabilities.focusMode)) {
+          if (capabilities.focusMode.includes('continuous')) {
+            advancedSpecs.focusMode = 'continuous';
+          } else if (capabilities.focusMode.includes('single-shot')) {
+            advancedSpecs.focusMode = 'single-shot';
+          }
+        }
+
+        if (Object.keys(advancedSpecs).length > 0) {
+          try {
+            await track.applyConstraints({ advanced: [advancedSpecs] });
+          } catch (cErr) {
+            console.warn('Constraints avançadas de câmera não puderam ser aplicadas:', cErr);
+          }
+        }
+      }
     } catch (err) {
       console.warn('Câmera WebRTC indisponível. Usando seletor nativo:', err);
       showNativeCaptureFallback();
     }
+  }
+
+  async function toggleZoomLevel() {
+    if (!activeStream) return;
+    const track = activeStream.getVideoTracks()[0];
+    if (!track || typeof track.getCapabilities !== 'function') {
+      alert('Controle de zoom não suportado nesta câmera.');
+      return;
+    }
+
+    const capabilities = track.getCapabilities();
+    if (!capabilities.zoom) {
+      alert('Zoom óptico/digital não suportado por este dispositivo.');
+      return;
+    }
+
+    const minZ = capabilities.zoom.min || 1.0;
+    const maxZ = Math.min(capabilities.zoom.max || 4.0, 3.0);
+    const step = (maxZ - minZ) >= 1.0 ? 0.5 : 0.2;
+
+    if (currentZoomLevel < minZ || currentZoomLevel >= maxZ) {
+      currentZoomLevel = minZ;
+    } else {
+      currentZoomLevel = Math.min(currentZoomLevel + step, maxZ);
+    }
+
+    try {
+      await track.applyConstraints({ advanced: [{ zoom: currentZoomLevel }] });
+      updateZoomBtnUI(currentZoomLevel);
+    } catch (zErr) {
+      console.warn('Erro ao aplicar zoom:', zErr);
+    }
+  }
+
+  function updateZoomBtnUI(zoomVal) {
+    const btn = document.getElementById('scanner-btn-zoom');
+    if (btn) btn.textContent = `🔍 ${zoomVal.toFixed(1)}x`;
+  }
+
+  function setupTapToFocus() {
+    const container = el.webRtcContainer();
+    if (!container) return;
+
+    container.addEventListener('click', async function(e) {
+      if (e.target.closest('#scanner-btn-zoom') || e.target.closest('.wa-action-item')) return;
+
+      const rect = container.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      showFocusRing(x, y);
+
+      if (!activeStream) return;
+      const track = activeStream.getVideoTracks()[0];
+      if (!track || typeof track.getCapabilities !== 'function') return;
+
+      const capabilities = track.getCapabilities();
+      if (capabilities.focusMode && Array.isArray(capabilities.focusMode)) {
+        try {
+          if (capabilities.focusMode.includes('single-shot')) {
+            await track.applyConstraints({ advanced: [{ focusMode: 'single-shot' }] });
+            setTimeout(() => {
+              if (activeStream && capabilities.focusMode.includes('continuous')) {
+                track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
+              }
+            }, 1000);
+          } else if (capabilities.focusMode.includes('continuous')) {
+            await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+          }
+        } catch (fErr) {
+          console.warn('Erro ao ajustar auto-foco:', fErr);
+        }
+      }
+    });
+  }
+
+  function showFocusRing(x, y) {
+    let ring = document.getElementById('scanner-focus-ring');
+    if (!ring) {
+      ring = document.createElement('div');
+      ring.id = 'scanner-focus-ring';
+      ring.className = 'scanner-focus-ring';
+      el.webRtcContainer()?.appendChild(ring);
+    }
+
+    ring.style.left = `${x}px`;
+    ring.style.top = `${y}px`;
+    ring.classList.add('active');
+
+    setTimeout(() => {
+      ring.classList.remove('active');
+    }, 800);
   }
 
   function stopWebRtcCamera() {
