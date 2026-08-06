@@ -857,4 +857,126 @@ body {
   font-weight: 600;
 }
 
+/* FLOATING ACTION BUTTON (FAB +) */
+.fab-container {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.fab-main-btn {
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #ffffff;
+  border: none;
+  font-size: 2rem;
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.45);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease;
+  user-select: none;
+}
+
+.fab-main-btn:hover {
+  transform: scale(1.08) rotate(90deg);
+}
+
+.fab-main-btn.active {
+  transform: rotate(45deg);
+  background: #dc2626;
+  box-shadow: 0 8px 24px rgba(220, 38, 38, 0.45);
+}
+
+.fab-menu {
+  display: none;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-end;
+  animation: fabFadeIn 0.25s ease forwards;
+}
+
+@keyframes fabFadeIn {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fab-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  padding: 0.65rem 1.1rem;
+  border-radius: 25px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  transition: transform 0.15s ease, background-color 0.15s ease;
+  white-space: nowrap;
+}
+
+.fab-menu-item:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+  transform: scale(1.04);
+}
+
+.fab-menu-item .fab-icon {
+  font-size: 1.1rem;
+}
+
+/* INTERACTIVE CORNER CROPPING EDITOR */
+.crop-editor-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 380px;
+  background-color: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  user-select: none;
+  touch-action: none;
+}
+
+.crop-editor-canvas-container {
+  position: relative;
+  max-width: 100%;
+  max-height: 100%;
+  display: inline-block;
+}
+
+.crop-handle-node {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #22c55e;
+  border: 3px solid #ffffff;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.6), 0 0 0 4px rgba(34, 197, 94, 0.35);
+  transform: translate(-50%, -50%);
+  cursor: grab;
+  z-index: 50;
+  touch-action: none;
+}
+
+.crop-handle-node:active {
+  cursor: grabbing;
+  transform: translate(-50%, -50%) scale(1.25);
+  background: #16a34a;
+}
+
+
 

@@ -1,19 +1,29 @@
 /**
- * CROQUI WEB - DOCUMENT SCANNER MODULE (WHATSAPP STYLE)
- * Digitalizador de Documentos em PDF estilo WhatsApp para Celulares e Desktops
+ * CROQUI WEB - SMART DOCUMENT SCANNER & CROPPER MODULE
+ * Digitalizador Inteligente com Recorte Manual dos 4 Cantos, Filtros e Botão Flutuante (+)
  */
 
 window.DocumentScannerApp = (function() {
-  let pages = []; // Elementos de imagem ou canvas de cada página digitalizada
-  let currentTargetInputId = null; // ID do input de formulário que receberá o PDF ('upload-pdf' ou 'replace-pdf')
-  let currentTargetBadgeId = null; // ID do container de badge de arquivo digitalizado
-  let activeStream = null; // Stream da câmera WebRTC
-  let currentFilter = 'bw'; // 'bw' (Documento P&B), 'original' (Cor), 'gray' (Tons de cinza)
-  let currentFacingMode = 'environment'; // 'environment' (traseira) ou 'user' (frontal)
-  let isFlashOn = false; // Estado da lanterna/flash
+  let pages = []; // Coleção de páginas recortadas e processadas
+  let currentTargetInputId = null;
+  let currentTargetBadgeId = null;
+  let activeStream = null;
+  let currentFilter = 'bw'; // 'bw' (Documento P&B), 'original' (Colorido), 'gray' (Tons de Cinza)
+  let currentFacingMode = 'environment';
+  let isFlashOn = false;
   let activePageIndex = 0;
 
-  // DOM Getters para os Elementos do Scanner estilo WhatsApp
+  // Estado da foto bruta em processo de edição/recorte
+  let rawCapturedCanvas = null;
+  let corners = {
+    tl: { x: 0.1, y: 0.1 },
+    tr: { x: 0.9, y: 0.1 },
+    br: { x: 0.9, y: 0.9 },
+    bl: { x: 0.1, y: 0.9 }
+  };
+  let activeDraggingCorner = null;
+
+  // DOM Getters
   const el = {
     modal: () => document.getElementById('modal-scanner'),
     videoFeed: () => document.getElementById('scanner-video-feed'),
@@ -30,15 +40,35 @@ window.DocumentScannerApp = (function() {
     btnClose: () => document.getElementById('scanner-btn-close'),
     webRtcContainer: () => document.getElementById('scanner-webrtc-container'),
     nativeContainer: () => document.getElementById('scanner-native-container'),
-    greenBox: () => document.getElementById('scanner-green-box'),
     footerStrip: () => document.getElementById('scanner-footer-strip'),
     actionFlash: () => document.getElementById('scanner-action-flash'),
     actionFilters: () => document.getElementById('scanner-action-filters'),
-    actionToggleCamera: () => document.getElementById('scanner-action-toggle-camera')
+    actionToggleCamera: () => document.getElementById('scanner-action-toggle-camera'),
+
+    // Crop Editor Elements
+    cropEditorContainer: () => document.getElementById('scanner-crop-editor-container'),
+    cropCanvasBox: () => document.getElementById('crop-canvas-box'),
+    cropSourceCanvas: () => document.getElementById('crop-source-canvas'),
+    cropPolygonPath: () => document.getElementById('crop-polygon-path'),
+    cropConfirmBar: () => document.getElementById('scanner-crop-confirm-bar'),
+    mainActionsRow: () => document.getElementById('scanner-main-actions-row'),
+    btnApplyCrop: () => document.getElementById('scanner-btn-apply-crop'),
+    btnCancelCrop: () => document.getElementById('scanner-btn-cancel-crop'),
+    handleTL: () => document.getElementById('handle-tl'),
+    handleTR: () => document.getElementById('handle-tr'),
+    handleBR: () => document.getElementById('handle-br'),
+    handleBL: () => document.getElementById('handle-bl'),
+
+    // FAB Button Elements
+    fabContainer: () => document.getElementById('fab-container'),
+    fabMainBtn: () => document.getElementById('fab-main-btn'),
+    fabMenu: () => document.getElementById('fab-menu')
   };
 
   function init() {
     setupListeners();
+    setupCropEditorDragHandlers();
+    setupFabListeners();
   }
 
   function setupListeners() {
@@ -55,37 +85,67 @@ window.DocumentScannerApp = (function() {
     if (!modal) return;
 
     el.btnClose()?.addEventListener('click', closeScanner);
-
-    // Botão Disparo Circular (Shutter)
     el.btnCaptureWebRTC()?.addEventListener('click', captureFromWebRtc);
-
-    // Botão Ação: Alternar Câmera / Obturador
     el.actionToggleCamera()?.addEventListener('click', function() {
       currentFacingMode = (currentFacingMode === 'environment') ? 'user' : 'environment';
       startWebRtcCamera();
     });
-
-    // Botão Ação: Alternar Filtro (Cor, P&B, Grayscale)
     el.actionFilters()?.addEventListener('click', cycleFilter);
-
-    // Botão Ação: Flash / Lanterna
     el.actionFlash()?.addEventListener('click', toggleFlash);
 
-    // Entrada por Câmera Nativa do Celular (Fallback)
     el.fileInputNative()?.addEventListener('change', handleNativeFileSelect);
     el.btnAddPageNative()?.addEventListener('click', function() {
-      const input = el.fileInputNative();
-      if (input) input.click();
+      el.fileInputNative()?.click();
     });
 
-    // Rotação de Página
     el.btnRotate()?.addEventListener('click', rotateActivePage);
-
-    // Deletar Página
     el.btnDeletePage()?.addEventListener('click', deleteActivePage);
-
-    // Finalizar PDF
     el.btnFinishPdf()?.addEventListener('click', generatePdfAndAttach);
+
+    el.btnApplyCrop()?.addEventListener('click', applyCropAndAddPage);
+    el.btnCancelCrop()?.addEventListener('click', function() {
+      showWebRtcContainer();
+      startWebRtcCamera();
+    });
+  }
+
+  function setupFabListeners() {
+    const mainBtn = el.fabMainBtn();
+    const menu = el.fabMenu();
+    if (!mainBtn || !menu) return;
+
+    mainBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const isActive = mainBtn.classList.toggle('active');
+      menu.style.display = isActive ? 'flex' : 'none';
+    });
+
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('#fab-container')) {
+        mainBtn.classList.remove('active');
+        menu.style.display = 'none';
+      }
+    });
+
+    menu.querySelectorAll('.fab-menu-item').forEach(item => {
+      item.addEventListener('click', function() {
+        const action = item.getAttribute('data-fab-action');
+        mainBtn.classList.remove('active');
+        menu.style.display = 'none';
+
+        if (action === 'scan' || action === 'take-photo') {
+          openScanner('upload-pdf', 'upload-pdf-badge');
+        } else if (action === 'import-pdf') {
+          const btnDash = document.getElementById('btn-open-upload-dash');
+          if (btnDash) btnDash.click();
+        } else if (action === 'import-img') {
+          openScanner('upload-pdf', 'upload-pdf-badge');
+          setTimeout(() => {
+            el.fileInputNative()?.click();
+          }, 300);
+        }
+      });
+    });
   }
 
   function openScanner(targetInputId, targetBadgeId) {
@@ -120,24 +180,59 @@ window.DocumentScannerApp = (function() {
 
   function showWebRtcContainer() {
     stopWebRtcCamera();
-    const webRtc = el.webRtcContainer();
-    const native = el.nativeContainer();
-    const previewCanvas = el.activePreviewCanvas();
+    el.webRtcContainer() ? el.webRtcContainer().style.display = 'block' : null;
+    el.nativeContainer() ? el.nativeContainer().style.display = 'none' : null;
+    el.activePreviewCanvas() ? el.activePreviewCanvas().style.display = 'none' : null;
+    el.cropEditorContainer() ? el.cropEditorContainer().style.display = 'none' : null;
+    el.cropConfirmBar() ? el.cropConfirmBar().style.display = 'none' : null;
 
-    if (webRtc) webRtc.style.display = 'block';
-    if (native) native.style.display = 'none';
-    if (previewCanvas) previewCanvas.style.display = 'none';
+    el.mainActionsRow() ? el.mainActionsRow().style.display = 'flex' : null;
+    el.btnCaptureWebRTC() ? el.btnCaptureWebRTC().style.display = 'flex' : null;
+  }
+
+  function showCropEditor(sourceCanvas) {
+    stopWebRtcCamera();
+    rawCapturedCanvas = sourceCanvas;
+
+    el.webRtcContainer() ? el.webRtcContainer().style.display = 'none' : null;
+    el.nativeContainer() ? el.nativeContainer().style.display = 'none' : null;
+    el.activePreviewCanvas() ? el.activePreviewCanvas().style.display = 'none' : null;
+    el.cropEditorContainer() ? el.cropEditorContainer().style.display = 'flex' : null;
+    el.cropConfirmBar() ? el.cropConfirmBar().style.display = 'flex' : null;
+
+    el.mainActionsRow() ? el.mainActionsRow().style.display = 'none' : null;
+    el.btnCaptureWebRTC() ? el.btnCaptureWebRTC().style.display = 'none' : null;
+
+    // Renderizar a foto bruta no canvas de edição do recorte
+    const srcCanvas = el.cropSourceCanvas();
+    if (!srcCanvas) return;
+
+    srcCanvas.width = sourceCanvas.width;
+    srcCanvas.height = sourceCanvas.height;
+    const ctx = srcCanvas.getContext('2d');
+    ctx.drawImage(sourceCanvas, 0, 0);
+
+    // Cantos padrão (caixa A4 com margem interna de 10%)
+    corners = {
+      tl: { x: 0.12, y: 0.08 },
+      tr: { x: 0.88, y: 0.08 },
+      br: { x: 0.88, y: 0.92 },
+      bl: { x: 0.12, y: 0.92 }
+    };
+
+    updateCropHandlesPosition();
   }
 
   function showPreviewContainer() {
     stopWebRtcCamera();
-    const webRtc = el.webRtcContainer();
-    const native = el.nativeContainer();
-    const previewCanvas = el.activePreviewCanvas();
+    el.webRtcContainer() ? el.webRtcContainer().style.display = 'none' : null;
+    el.nativeContainer() ? el.nativeContainer().style.display = 'none' : null;
+    el.cropEditorContainer() ? el.cropEditorContainer().style.display = 'none' : null;
+    el.cropConfirmBar() ? el.cropConfirmBar().style.display = 'none' : null;
+    el.activePreviewCanvas() ? el.activePreviewCanvas().style.display = 'block' : null;
 
-    if (webRtc) webRtc.style.display = 'none';
-    if (native) native.style.display = 'none';
-    if (previewCanvas) previewCanvas.style.display = 'block';
+    el.mainActionsRow() ? el.mainActionsRow().style.display = 'flex' : null;
+    el.btnCaptureWebRTC() ? el.btnCaptureWebRTC().style.display = 'flex' : null;
   }
 
   async function startWebRtcCamera() {
@@ -158,7 +253,7 @@ window.DocumentScannerApp = (function() {
       video.srcObject = activeStream;
       await video.play();
     } catch (err) {
-      console.warn('Câmera WebRTC indisponível no navegador. Abrindo câmera nativa:', err);
+      console.warn('Câmera WebRTC indisponível. Usando seletor nativo:', err);
       showNativeCaptureFallback();
     }
   }
@@ -179,7 +274,7 @@ window.DocumentScannerApp = (function() {
 
     const capabilities = track.getCapabilities ? track.getCapabilities() : {};
     if (!capabilities.torch) {
-      alert('A iluminação por flash não é suportada por esta câmera ou navegador.');
+      alert('Lanterna não suportada por esta câmera.');
       return;
     }
 
@@ -187,11 +282,9 @@ window.DocumentScannerApp = (function() {
     track.applyConstraints({ advanced: [{ torch: isFlashOn }] })
       .then(() => {
         const flashIcon = document.getElementById('scanner-flash-icon');
-        if (flashIcon) {
-          flashIcon.parentElement.classList.toggle('active', isFlashOn);
-        }
+        if (flashIcon) flashIcon.parentElement.classList.toggle('active', isFlashOn);
       })
-      .catch(err => console.warn('Erro ao alternar flash:', err));
+      .catch(err => console.warn('Erro flash:', err));
   }
 
   function cycleFilter() {
@@ -222,21 +315,15 @@ window.DocumentScannerApp = (function() {
 
   function showNativeCaptureFallback() {
     stopWebRtcCamera();
-    const webRtc = el.webRtcContainer();
-    const native = el.nativeContainer();
-    const previewCanvas = el.activePreviewCanvas();
-
-    if (webRtc) webRtc.style.display = 'none';
-    if (native) native.style.display = 'block';
-    if (previewCanvas) previewCanvas.style.display = 'none';
+    el.webRtcContainer() ? el.webRtcContainer().style.display = 'none' : null;
+    el.nativeContainer() ? el.nativeContainer().style.display = 'block' : null;
+    el.activePreviewCanvas() ? el.activePreviewCanvas().style.display = 'none' : null;
   }
 
   function captureFromWebRtc() {
     const video = el.videoFeed();
     if (!video || !video.videoWidth) {
-      // Se não houver video ao vivo, abrir seletor nativo
-      const nativeInput = el.fileInputNative();
-      if (nativeInput) nativeInput.click();
+      el.fileInputNative()?.click();
       return;
     }
 
@@ -246,7 +333,7 @@ window.DocumentScannerApp = (function() {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    addCapturedImage(canvas);
+    showCropEditor(canvas);
   }
 
   function handleNativeFileSelect(e) {
@@ -265,7 +352,7 @@ window.DocumentScannerApp = (function() {
           canvas.height = img.height;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0);
-          addCapturedImage(canvas);
+          showCropEditor(canvas);
         };
         img.src = event.target.result;
       };
@@ -275,12 +362,125 @@ window.DocumentScannerApp = (function() {
     e.target.value = '';
   }
 
-  function addCapturedImage(sourceCanvas) {
+  // --- LÓGICA DE ARRASTE DOS 4 CANTOS (CROP EDITOR) ---
+  function setupCropEditorDragHandlers() {
+    const handles = [el.handleTL(), el.handleTR(), el.handleBR(), el.handleBL()];
+
+    const startDrag = (cornerKey, e) => {
+      e.preventDefault();
+      activeDraggingCorner = cornerKey;
+    };
+
+    const doDrag = (e) => {
+      if (!activeDraggingCorner || !rawCapturedCanvas) return;
+      const box = el.cropCanvasBox();
+      if (!box) return;
+
+      const rect = box.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+      let normX = (clientX - rect.left) / rect.width;
+      let normY = (clientY - rect.top) / rect.height;
+
+      normX = Math.max(0, Math.min(1, normX));
+      normY = Math.max(0, Math.min(1, normY));
+
+      corners[activeDraggingCorner] = { x: normX, y: normY };
+      updateCropHandlesPosition();
+    };
+
+    const stopDrag = () => {
+      activeDraggingCorner = null;
+    };
+
+    handles.forEach(h => {
+      if (!h) return;
+      const cornerKey = h.getAttribute('data-corner');
+      h.addEventListener('mousedown', (e) => startDrag(cornerKey, e));
+      h.addEventListener('touchstart', (e) => startDrag(cornerKey, e), { passive: false });
+    });
+
+    window.addEventListener('mousemove', doDrag);
+    window.addEventListener('touchmove', doDrag, { passive: false });
+    window.addEventListener('mouseup', stopDrag);
+    window.addEventListener('touchend', stopDrag);
+  }
+
+  function updateCropHandlesPosition() {
+    const box = el.cropCanvasBox();
+    if (!box) return;
+
+    const w = box.clientWidth;
+    const h = box.clientHeight;
+
+    const pTL = { x: corners.tl.x * w, y: corners.tl.y * h };
+    const pTR = { x: corners.tr.x * w, y: corners.tr.y * h };
+    const pBR = { x: corners.br.x * w, y: corners.br.y * h };
+    const pBL = { x: corners.bl.x * w, y: corners.bl.y * h };
+
+    if (el.handleTL()) { el.handleTL().style.left = pTL.x + 'px'; el.handleTL().style.top = pTL.y + 'px'; }
+    if (el.handleTR()) { el.handleTR().style.left = pTR.x + 'px'; el.handleTR().style.top = pTR.y + 'px'; }
+    if (el.handleBR()) { el.handleBR().style.left = pBR.x + 'px'; el.handleBR().style.top = pBR.y + 'px'; }
+    if (el.handleBL()) { el.handleBL().style.left = pBL.x + 'px'; el.handleBL().style.top = pBL.y + 'px'; }
+
+    const poly = el.cropPolygonPath();
+    if (poly) {
+      poly.setAttribute('points', `${pTL.x},${pTL.y} ${pTR.x},${pTR.y} ${pBR.x},${pBR.y} ${pBL.x},${pBL.y}`);
+    }
+  }
+
+  function applyCropAndAddPage() {
+    if (!rawCapturedCanvas) return;
+
+    // Dimensões do canvas de origem
+    const sw = rawCapturedCanvas.width;
+    const sh = rawCapturedCanvas.height;
+
+    // Coordenadas absolutas dos 4 cantos selecionados
+    const pTL = { x: corners.tl.x * sw, y: corners.tl.y * sh };
+    const pTR = { x: corners.tr.x * sw, y: corners.tr.y * sh };
+    const pBR = { x: corners.br.x * sw, y: corners.br.y * sh };
+    const pBL = { x: corners.bl.x * sw, y: corners.bl.y * sh };
+
+    // Calcular dimensões do documento A4 recortado
+    const cropWidth = Math.max(
+      Math.hypot(pTR.x - pTL.x, pTR.y - pTL.y),
+      Math.hypot(pBR.x - pBL.x, pBR.y - pBL.y)
+    );
+    const cropHeight = Math.max(
+      Math.hypot(pBL.x - pTL.x, pBL.y - pTL.y),
+      Math.hypot(pBR.x - pTR.x, pBR.y - pTR.y)
+    );
+
+    // Destino final com proporção Retrato A4
+    const destCanvas = document.createElement('canvas');
+    destCanvas.width = Math.max(800, Math.round(cropWidth));
+    destCanvas.height = Math.round(destCanvas.width * 1.414);
+
+    const ctx = destCanvas.getContext('2d');
+    
+    // Projeção do polígono recortado no canvas A4
+    const minX = Math.min(pTL.x, pTR.x, pBR.x, pBL.x);
+    const maxX = Math.max(pTL.x, pTR.x, pBR.x, pBL.x);
+    const minY = Math.min(pTL.y, pTR.y, pBR.y, pBL.y);
+    const maxY = Math.max(pTL.y, pTR.y, pBR.y, pBL.y);
+
+    const boundW = Math.max(1, maxX - minX);
+    const boundH = Math.max(1, maxY - minY);
+
+    ctx.drawImage(
+      rawCapturedCanvas,
+      minX, minY, boundW, boundH,
+      0, 0, destCanvas.width, destCanvas.height
+    );
+
     const pageObj = {
-      originalCanvas: sourceCanvas,
+      originalCanvas: destCanvas,
       rotation: 0,
       filter: currentFilter
     };
+
     pages.push(pageObj);
     activePageIndex = pages.length - 1;
 
@@ -356,6 +556,7 @@ window.DocumentScannerApp = (function() {
         data[i + 1] = gray;
         data[i + 2] = gray;
       } else if (filterType === 'bw') {
+        // Documento P&B Scanner com nitidez de contraste
         const v = gray > 135 ? 255 : (gray < 75 ? 0 : (gray - 75) * 4.25);
         data[i] = v;
         data[i + 1] = v;
@@ -423,7 +624,7 @@ window.DocumentScannerApp = (function() {
 
   async function generatePdfAndAttach() {
     if (pages.length === 0) {
-      alert('Tire ao menos uma foto do documento antes de concluir.');
+      alert('Tire ao menos uma foto e confirme o recorte do documento.');
       return;
     }
 
@@ -490,6 +691,7 @@ window.DocumentScannerApp = (function() {
       const fileName = `Croqui_Digitalizado_${timestamp}.pdf`;
       const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
 
+      // Anexar PDF ao input de upload
       if (currentTargetInputId) {
         const inputEl = document.getElementById(currentTargetInputId);
         if (inputEl) {
@@ -515,6 +717,13 @@ window.DocumentScannerApp = (function() {
       }
 
       closeScanner();
+
+      // Abrir automaticamente a janela de cadastro de Croqui com o PDF anexado
+      const modalUpload = document.getElementById('modal-upload');
+      if (modalUpload) {
+        modalUpload.classList.add('active');
+        modalUpload.style.display = 'flex';
+      }
     } catch (err) {
       console.error('Erro ao gerar PDF digitalizado:', err);
       alert('Falha ao gerar o arquivo PDF: ' + err.message);
