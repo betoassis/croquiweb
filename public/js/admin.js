@@ -150,21 +150,13 @@ window.AdminApp = (function() {
     const container = el.navAuthContainer();
     if (container) {
       container.innerHTML = `
-        <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
-          <span style="font-size:0.85rem; color: var(--text-light);">Olá, <strong>${user.name}</strong></span>
-          ${isAdmin ? `
-            <button class="btn-admin-login" id="btn-go-admin" style="background-color: var(--secondary-light);">
-              ⚙️ Painel Admin
-            </button>
-          ` : ''}
-          <button class="btn-admin-login" id="btn-top-logout" style="background-color: #d93025; border-color: #d93025; color: #fff;">
+        <div class="nav-user-controls">
+          <span class="nav-user-greeting">Olá, <strong>${user.name}</strong></span>
+          <button class="btn-top-logout" id="btn-top-logout">
             🚪 Sair
           </button>
         </div>
       `;
-      if (isAdmin) {
-        document.getElementById('btn-go-admin')?.addEventListener('click', showAdminView);
-      }
       document.getElementById('btn-top-logout')?.addEventListener('click', logout);
     }
   }
