@@ -149,8 +149,9 @@ window.DocumentScannerApp = (function() {
       const constraints = {
         video: {
           facingMode: { ideal: currentFacingMode },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
+          width: { ideal: 1080 },
+          height: { ideal: 1920 },
+          aspectRatio: { ideal: 9 / 16 }
         }
       };
       activeStream = await navigator.mediaDevices.getUserMedia(constraints);
