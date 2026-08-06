@@ -761,6 +761,14 @@
 
       <!-- BARRA INFERIOR DE CONTROLES DO WHATSAPP -->
       <div class="scanner-wa-bottom-bar">
+        <!-- BARRA SELETORA DE FILTROS DO SCANNER -->
+        <div class="scanner-filter-bar" id="scanner-filter-bar" style="display: none;">
+          <button type="button" class="filter-pill-btn active" data-filter="bw">📄 P&B Scanner</button>
+          <button type="button" class="filter-pill-btn" data-filter="magic">🪄 Mágico</button>
+          <button type="button" class="filter-pill-btn" data-filter="gray">👵 Cinza</button>
+          <button type="button" class="filter-pill-btn" data-filter="original">🖼️ Original</button>
+        </div>
+
         <!-- BOTÃO DE CONFIRMAÇÃO DO RECORTE (EXIBIDO DURANTE A EDIÇÃO DOS CANTOS) -->
         <div id="scanner-crop-confirm-bar" style="display: none; width: 100%; justify-content: space-between; align-items: center; background: rgba(15, 23, 42, 0.95); padding: 0.75rem 1.25rem; border-radius: 25px; border: 1px solid rgba(255,255,255,0.15);">
           <button type="button" class="btn-secondary" id="scanner-btn-cancel-crop" style="padding: 0.45rem 1rem; font-size: 0.85rem; border: none; color: #fff; background: rgba(255,255,255,0.15);">

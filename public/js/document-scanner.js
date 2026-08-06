@@ -60,10 +60,11 @@ window.DocumentScannerApp = (function() {
     handleBR: () => document.getElementById('handle-br'),
     handleBL: () => document.getElementById('handle-bl'),
 
-    // FAB Button Elements
+    // FAB & Filter Elements
     fabContainer: () => document.getElementById('fab-container'),
     fabMainBtn: () => document.getElementById('fab-main-btn'),
-    fabMenu: () => document.getElementById('fab-menu')
+    fabMenu: () => document.getElementById('fab-menu'),
+    filterBar: () => document.getElementById('scanner-filter-bar')
   };
 
   function init() {
@@ -71,6 +72,7 @@ window.DocumentScannerApp = (function() {
     setupCropEditorDragHandlers();
     setupFabListeners();
     setupTapToFocus();
+    setupFilterPills();
   }
 
   function setupListeners() {
@@ -196,6 +198,7 @@ window.DocumentScannerApp = (function() {
     el.activePreviewCanvas() ? el.activePreviewCanvas().style.display = 'none' : null;
     el.cropEditorContainer() ? el.cropEditorContainer().style.display = 'none' : null;
     el.cropConfirmBar() ? el.cropConfirmBar().style.display = 'none' : null;
+    el.filterBar() ? el.filterBar().style.display = 'none' : null;
 
     el.mainActionsRow() ? el.mainActionsRow().style.display = 'flex' : null;
     el.btnCaptureWebRTC() ? el.btnCaptureWebRTC().style.display = 'flex' : null;
@@ -210,6 +213,7 @@ window.DocumentScannerApp = (function() {
     el.activePreviewCanvas() ? el.activePreviewCanvas().style.display = 'none' : null;
     el.cropEditorContainer() ? el.cropEditorContainer().style.display = 'flex' : null;
     el.cropConfirmBar() ? el.cropConfirmBar().style.display = 'flex' : null;
+    el.filterBar() ? el.filterBar().style.display = 'none' : null;
 
     el.mainActionsRow() ? el.mainActionsRow().style.display = 'none' : null;
     el.btnCaptureWebRTC() ? el.btnCaptureWebRTC().style.display = 'none' : null;
@@ -244,6 +248,7 @@ window.DocumentScannerApp = (function() {
     el.cropEditorContainer() ? el.cropEditorContainer().style.display = 'none' : null;
     el.cropConfirmBar() ? el.cropConfirmBar().style.display = 'none' : null;
     el.activePreviewCanvas() ? el.activePreviewCanvas().style.display = 'block' : null;
+    el.filterBar() ? el.filterBar().style.display = 'flex' : null;
 
     el.mainActionsRow() ? el.mainActionsRow().style.display = 'flex' : null;
     el.btnCaptureWebRTC() ? el.btnCaptureWebRTC().style.display = 'flex' : null;
@@ -425,10 +430,34 @@ window.DocumentScannerApp = (function() {
       .catch(err => console.warn('Erro flash:', err));
   }
 
+  function setupFilterPills() {
+    const filterBar = el.filterBar();
+    if (!filterBar) return;
+
+    filterBar.querySelectorAll('.filter-pill-btn').forEach(btn => {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        const selectedFilter = btn.getAttribute('data-filter');
+        currentFilter = selectedFilter;
+
+        if (pages.length > 0 && pages[activePageIndex]) {
+          pages[activePageIndex].filter = currentFilter;
+          renderActivePagePreview();
+        }
+        updateFilterUI();
+      });
+    });
+  }
+
   function cycleFilter() {
-    const filters = ['bw', 'original', 'gray'];
+    const filters = ['bw', 'magic', 'gray', 'original'];
     const currentIndex = filters.indexOf(currentFilter);
     currentFilter = filters[(currentIndex + 1) % filters.length];
+
+    const filterBar = el.filterBar();
+    if (filterBar) {
+      filterBar.style.display = 'flex';
+    }
 
     if (pages.length > 0 && pages[activePageIndex]) {
       pages[activePageIndex].filter = currentFilter;
@@ -438,11 +467,12 @@ window.DocumentScannerApp = (function() {
   }
 
   function updateFilterUI() {
-    const pill = el.filterPill();
-    if (pill) {
-      if (currentFilter === 'bw') pill.textContent = 'Documento P&B';
-      else if (currentFilter === 'original') pill.textContent = 'Cor (Original)';
-      else if (currentFilter === 'gray') pill.textContent = 'Tons de Cinza';
+    const filterBar = el.filterBar();
+    if (filterBar) {
+      filterBar.querySelectorAll('.filter-pill-btn').forEach(btn => {
+        const isMatch = btn.getAttribute('data-filter') === currentFilter;
+        btn.classList.toggle('active', isMatch);
+      });
     }
 
     const filterIcon = document.getElementById('scanner-filter-icon');
@@ -574,53 +604,105 @@ window.DocumentScannerApp = (function() {
     }
   }
 
-  function applyCropAndAddPage() {
-    if (!rawCapturedCanvas) return;
+  // Transformação de Perspectiva Bilinear de 4 Pontos (Desentorta o documento)
+  function warpPerspective(sourceCanvas, corners, destW, destH) {
+    const sw = sourceCanvas.width;
+    const sh = sourceCanvas.height;
 
-    // Dimensões do canvas de origem
-    const sw = rawCapturedCanvas.width;
-    const sh = rawCapturedCanvas.height;
-
-    // Coordenadas absolutas dos 4 cantos selecionados
     const pTL = { x: corners.tl.x * sw, y: corners.tl.y * sh };
     const pTR = { x: corners.tr.x * sw, y: corners.tr.y * sh };
     const pBR = { x: corners.br.x * sw, y: corners.br.y * sh };
     const pBL = { x: corners.bl.x * sw, y: corners.bl.y * sh };
 
-    // Calcular dimensões do documento A4 recortado
-    const cropWidth = Math.max(
-      Math.hypot(pTR.x - pTL.x, pTR.y - pTL.y),
-      Math.hypot(pBR.x - pBL.x, pBR.y - pBL.y)
-    );
-    const cropHeight = Math.max(
-      Math.hypot(pBL.x - pTL.x, pBL.y - pTL.y),
-      Math.hypot(pBR.x - pTR.x, pBR.y - pTR.y)
-    );
+    const srcCtx = sourceCanvas.getContext('2d');
+    const srcImgData = srcCtx.getImageData(0, 0, sw, sh);
+    const srcData = srcImgData.data;
 
-    // Destino final com proporção Retrato A4
     const destCanvas = document.createElement('canvas');
-    destCanvas.width = Math.max(800, Math.round(cropWidth));
-    destCanvas.height = Math.round(destCanvas.width * 1.414);
+    destCanvas.width = destW;
+    destCanvas.height = destH;
+    const destCtx = destCanvas.getContext('2d');
+    const destImgData = destCtx.createImageData(destW, destH);
+    const destData = destImgData.data;
 
-    const ctx = destCanvas.getContext('2d');
-    
-    // Projeção do polígono recortado no canvas A4
-    const minX = Math.min(pTL.x, pTR.x, pBR.x, pBL.x);
-    const maxX = Math.max(pTL.x, pTR.x, pBR.x, pBL.x);
-    const minY = Math.min(pTL.y, pTR.y, pBR.y, pBL.y);
-    const maxY = Math.max(pTL.y, pTR.y, pBR.y, pBL.y);
+    for (let y = 0; y < destH; y++) {
+      const v = y / (destH - 1);
+      const invV = 1 - v;
 
-    const boundW = Math.max(1, maxX - minX);
-    const boundH = Math.max(1, maxY - minY);
+      const leftX = pTL.x * invV + pBL.x * v;
+      const leftY = pTL.y * invV + pBL.y * v;
+      const rightX = pTR.x * invV + pBR.x * v;
+      const rightY = pTR.y * invV + pBR.y * v;
 
-    ctx.drawImage(
-      rawCapturedCanvas,
-      minX, minY, boundW, boundH,
-      0, 0, destCanvas.width, destCanvas.height
-    );
+      for (let x = 0; x < destW; x++) {
+        const u = x / (destW - 1);
+        const invU = 1 - u;
+
+        const srcX = leftX * invU + rightX * u;
+        const srcY = leftY * invU + rightY * u;
+
+        const x0 = Math.floor(srcX);
+        const y0 = Math.floor(srcY);
+        const x1 = Math.min(x0 + 1, sw - 1);
+        const y1 = Math.min(y0 + 1, sh - 1);
+
+        const dx = srcX - x0;
+        const dy = srcY - y0;
+
+        const idx00 = (y0 * sw + x0) * 4;
+        const idx10 = (y0 * sw + x1) * 4;
+        const idx01 = (y1 * sw + x0) * 4;
+        const idx11 = (y1 * sw + x1) * 4;
+
+        const w00 = (1 - dx) * (1 - dy);
+        const w10 = dx * (1 - dy);
+        const w01 = (1 - dx) * dy;
+        const w11 = dx * dy;
+
+        const r = srcData[idx00] * w00 + srcData[idx10] * w10 + srcData[idx01] * w01 + srcData[idx11] * w11;
+        const g = srcData[idx00 + 1] * w00 + srcData[idx10 + 1] * w10 + srcData[idx01 + 1] * w01 + srcData[idx11 + 1] * w11;
+        const b = srcData[idx00 + 2] * w00 + srcData[idx10 + 2] * w10 + srcData[idx01 + 2] * w01 + srcData[idx11 + 2] * w11;
+        const a = srcData[idx00 + 3] * w00 + srcData[idx10 + 3] * w10 + srcData[idx01 + 3] * w01 + srcData[idx11 + 3] * w11;
+
+        const destIdx = (y * destW + x) * 4;
+        destData[destIdx] = r;
+        destData[destIdx + 1] = g;
+        destData[destIdx + 2] = b;
+        destData[destIdx + 3] = a;
+      }
+    }
+
+    destCtx.putImageData(destImgData, 0, 0);
+    return destCanvas;
+  }
+
+  function applyCropAndAddPage() {
+    if (!rawCapturedCanvas) return;
+
+    const sw = rawCapturedCanvas.width;
+    const sh = rawCapturedCanvas.height;
+
+    const pTL = { x: corners.tl.x * sw, y: corners.tl.y * sh };
+    const pTR = { x: corners.tr.x * sw, y: corners.tr.y * sh };
+    const pBR = { x: corners.br.x * sw, y: corners.br.y * sh };
+    const pBL = { x: corners.bl.x * sw, y: corners.bl.y * sh };
+
+    const topW = Math.hypot(pTR.x - pTL.x, pTR.y - pTL.y);
+    const botW = Math.hypot(pBR.x - pBL.x, pBR.y - pBL.y);
+    const leftH = Math.hypot(pBL.x - pTL.x, pBL.y - pTL.y);
+    const rightH = Math.hypot(pBR.x - pTR.x, pBR.y - pTR.y);
+
+    const cropW = Math.max(topW, botW);
+    const cropH = Math.max(leftH, rightH);
+
+    const destW = Math.max(800, Math.round(cropW));
+    const destH = Math.round(destW * 1.414);
+
+    // Executa a Transformação de Perspectiva Bilinear de 4 Pontos para desentortar o documento
+    const rectifiedCanvas = warpPerspective(rawCapturedCanvas, corners, destW, destH);
 
     const pageObj = {
-      originalCanvas: destCanvas,
+      originalCanvas: rectifiedCanvas,
       rotation: 0,
       filter: currentFilter
     };
@@ -700,11 +782,35 @@ window.DocumentScannerApp = (function() {
         data[i + 1] = gray;
         data[i + 2] = gray;
       } else if (filterType === 'bw') {
-        // Documento P&B Scanner com nitidez de contraste
-        const v = gray > 135 ? 255 : (gray < 75 ? 0 : (gray - 75) * 4.25);
+        // High Contrast Document Scan (P&B adaptativo com curva de contraste para não apagar texto fino)
+        let v;
+        if (gray > 180) {
+          v = 255;
+        } else if (gray < 80) {
+          v = 0;
+        } else {
+          const norm = (gray - 80) / 100;
+          v = Math.pow(norm, 1.4) * 255;
+        }
         data[i] = v;
         data[i + 1] = v;
         data[i + 2] = v;
+      } else if (filterType === 'magic') {
+        // Mágico (CamScanner Color: Aumenta contraste da cor e clareia o papel fundo)
+        const factor = 1.35;
+        const cbR = Math.min(255, Math.max(0, (r - 128) * factor + 128 + 15));
+        const cbG = Math.min(255, Math.max(0, (g - 128) * factor + 128 + 15));
+        const cbB = Math.min(255, Math.max(0, (b - 128) * factor + 128 + 15));
+
+        if (gray > 165) {
+          data[i] = Math.min(255, cbR + 35);
+          data[i + 1] = Math.min(255, cbG + 35);
+          data[i + 2] = Math.min(255, cbB + 35);
+        } else {
+          data[i] = cbR;
+          data[i + 1] = cbG;
+          data[i + 2] = cbB;
+        }
       }
     }
 
