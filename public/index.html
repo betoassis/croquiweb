@@ -10,6 +10,9 @@
   <link rel="stylesheet" href="/css/variables.css">
   <link rel="stylesheet" href="/css/style.css">
   <link rel="stylesheet" href="/css/admin.css">
+
+  <!-- External Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 
@@ -522,8 +525,14 @@
             <textarea id="upload-observacoes" class="form-control" placeholder="Descreva os limites, particularidades ou foco do quarteirão..."></textarea>
           </div>
           <div class="form-group">
-            <label class="form-label" for="upload-pdf">Arquivo PDF do Croqui *</label>
-            <input type="file" id="upload-pdf" class="form-control" accept="application/pdf" required>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label class="form-label" for="upload-pdf" style="margin-bottom: 0;">Arquivo PDF do Croqui *</label>
+              <button type="button" class="btn-open-scanner" data-target-input="upload-pdf" data-target-badge="upload-pdf-badge" style="font-size: 0.8rem; padding: 0.3rem 0.6rem;">
+                📷 Digitalizar via Câmera
+              </button>
+            </div>
+            <input type="file" id="upload-pdf" class="form-control" accept="application/pdf" style="margin-top: 0.35rem;" required>
+            <div id="upload-pdf-badge" style="display: none;"></div>
           </div>
           <div id="upload-error" style="color: var(--danger); font-size: 0.85rem; display: none;"></div>
         </div>
@@ -591,8 +600,14 @@
             Selecione o novo mapa em PDF para atualizar o arquivo do quarteirão <strong id="replace-quarteirao-title"></strong>. O arquivo anterior será substituído no servidor.
           </p>
           <div class="form-group">
-            <label class="form-label" for="replace-pdf">Novo PDF *</label>
-            <input type="file" id="replace-pdf" class="form-control" accept="application/pdf" required>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label class="form-label" for="replace-pdf" style="margin-bottom: 0;">Novo PDF *</label>
+              <button type="button" class="btn-open-scanner" data-target-input="replace-pdf" data-target-badge="replace-pdf-badge" style="font-size: 0.8rem; padding: 0.3rem 0.6rem;">
+                📷 Digitalizar via Câmera
+              </button>
+            </div>
+            <input type="file" id="replace-pdf" class="form-control" accept="application/pdf" style="margin-top: 0.35rem;" required>
+            <div id="replace-pdf-badge" style="display: none;"></div>
           </div>
           <div id="replace-error" style="color: var(--danger); font-size: 0.85rem; display: none;"></div>
         </div>
@@ -692,6 +707,95 @@
     </div>
   </div>
 
+  <!-- MODAL: DIGITALIZADOR DE DOCUMENTOS (SCANNER) -->
+  <div class="modal-backdrop" id="modal-scanner" style="display: none;">
+    <div class="modal-container scanner-modal-container">
+      <div class="modal-header">
+        <span class="modal-title">📷 Digitalizador de Documentos em PDF</span>
+        <button class="modal-close" id="scanner-btn-close">&times;</button>
+      </div>
+
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 0.75rem;">
+        <!-- VIEWFINDER E PRÉ-VISUALIZAÇÃO DA PÁGINA ATIVA -->
+        <div class="scanner-viewfinder-wrapper">
+          <!-- Câmera ao Vivo (WebRTC) -->
+          <div id="scanner-webrtc-container" style="width: 100%; height: 100%; position: relative;">
+            <video id="scanner-video-feed" class="scanner-video" autoplay playsinline muted></video>
+            <div class="scanner-frame-overlay">
+              <span class="scanner-frame-guide">Enquadre o croqui / papel no centro</span>
+            </div>
+          </div>
+
+          <!-- Captura Nativa / Fallback Celular -->
+          <div id="scanner-native-container" style="display: none; text-align: center; color: #fff; padding: 2rem;">
+            <div style="font-size: 3rem; margin-bottom: 0.5rem;">📸</div>
+            <p style="font-size: 0.95rem; margin-bottom: 1rem;">Use a câmera do seu celular ou escolha uma imagem da galeria.</p>
+            <button type="button" class="btn-primary" id="scanner-btn-add-native" style="padding: 0.6rem 1.25rem;">
+              📷 Abrir Câmera do Celular
+            </button>
+            <input type="file" id="scanner-native-input" accept="image/*" capture="environment" style="display: none;" multiple>
+          </div>
+
+          <!-- Pré-visualização da Foto Capturada (Canvas) -->
+          <canvas id="scanner-active-preview-canvas" class="scanner-canvas-preview" style="display: none;"></canvas>
+        </div>
+
+        <!-- BARRA DE FERRAMENTAS E FILTROS DA PÁGINA ATIVA -->
+        <div class="scanner-toolbar">
+          <div class="scanner-filter-group">
+            <button type="button" class="btn-filter-tag active" id="scanner-filter-bw" title="Filtro P&B Alto Contraste para Documento">
+              📄 Documento P&B
+            </button>
+            <button type="button" class="btn-filter-tag" id="scanner-filter-gray" title="Tons de Cinza">
+              📑 Tons de Cinza
+            </button>
+            <button type="button" class="btn-filter-tag" id="scanner-filter-original" title="Foto Original">
+              🖼️ Original
+            </button>
+          </div>
+
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <button type="button" class="btn-secondary" id="scanner-btn-rotate" title="Girar 90°" style="padding: 0.4rem 0.75rem; font-size: 0.85rem;">
+              🔄 Girar 90°
+            </button>
+            <button type="button" class="btn-secondary" id="scanner-btn-delete-page" title="Excluir Página Atual" style="padding: 0.4rem 0.75rem; font-size: 0.85rem; color: var(--danger);">
+              🗑️ Excluir Página
+            </button>
+          </div>
+        </div>
+
+        <!-- CONTADOR E CARROSSEL DE MÚLTIPLAS PÁGINAS -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.25rem;">
+          <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-main);" id="scanner-page-counter">
+            Página 0 de 0
+          </span>
+          <div style="display: flex; gap: 0.5rem;">
+            <button type="button" class="btn-secondary" id="scanner-btn-add-camera" style="padding: 0.35rem 0.75rem; font-size: 0.82rem;">
+              ➕ Adicionar Outra Página
+            </button>
+            <button type="button" class="btn-secondary" id="scanner-btn-toggle-camera" title="Alternar Câmera" style="padding: 0.35rem 0.75rem; font-size: 0.82rem;">
+              📷 Trocar Câmera
+            </button>
+          </div>
+        </div>
+
+        <div class="scanner-carousel-container" id="scanner-pages-carousel">
+          <!-- Miniaturas das páginas renderizadas dinamicamente pelo JS -->
+        </div>
+      </div>
+
+      <div class="modal-footer" style="justify-content: space-between;">
+        <button type="button" class="btn-secondary" id="scanner-btn-close">Cancelar</button>
+        <button type="button" class="btn-primary" id="scanner-btn-capture" style="background-color: var(--warning-dark);">
+          📸 Capturar Foto
+        </button>
+        <button type="button" class="btn-primary" id="scanner-btn-finish-pdf" disabled>
+          ✅ Finalizar e Usar PDF
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- FOOTER -->
   <footer class="footer">
     <p><strong>Croqui Web</strong> - Sistema de Apoio ao Agente de Combate às Endemias (ACE)</p>
@@ -703,6 +807,7 @@
   <!-- JS Scripts -->
   <script src="/js/modules/index.js"></script>
   <script src="/js/pdf-viewer.js"></script>
+  <script src="/js/document-scanner.js"></script>
   <script src="/js/admin.js"></script>
   <script src="/js/app.js"></script>
 </body>

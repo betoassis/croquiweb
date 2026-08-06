@@ -689,6 +689,11 @@ window.AdminApp = (function() {
       closeModal(el.modalUpload());
       const form = el.formUpload();
       if (form) form.reset();
+      const uploadBadge = document.getElementById('upload-pdf-badge');
+      if (uploadBadge) {
+        uploadBadge.innerHTML = '';
+        uploadBadge.style.display = 'none';
+      }
 
       loadDashboardStats();
       loadAdminCroquisTable();
@@ -773,6 +778,12 @@ window.AdminApp = (function() {
     document.getElementById('replace-id').value = croqui.id;
     document.getElementById('replace-quarteirao-title').textContent = `${croqui.bairro} (${croqui.quarteirao})`;
 
+    const replaceBadge = document.getElementById('replace-pdf-badge');
+    if (replaceBadge) {
+      replaceBadge.innerHTML = '';
+      replaceBadge.style.display = 'none';
+    }
+
     const errBox = el.replaceError();
     if (errBox) errBox.style.display = 'none';
     openModal(el.modalReplace());
@@ -808,6 +819,11 @@ window.AdminApp = (function() {
       closeModal(el.modalReplace());
       const form = el.formReplace();
       if (form) form.reset();
+      const replaceBadge = document.getElementById('replace-pdf-badge');
+      if (replaceBadge) {
+        replaceBadge.innerHTML = '';
+        replaceBadge.style.display = 'none';
+      }
       loadAdminCroquisTable();
       alert('Arquivo PDF substituído com sucesso!');
     })
