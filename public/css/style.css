@@ -38,10 +38,18 @@ html, body {
   box-sizing: border-box;
 }
 
+#nav-auth-container {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  z-index: 10;
+}
+
 .nav-user-controls {
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  flex-shrink: 0;
 }
 
 .nav-user-greeting {
@@ -58,9 +66,11 @@ html, body {
   font-weight: 600;
   font-size: 0.85rem;
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+  flex-shrink: 0;
+  white-space: nowrap;
   transition: background-color var(--transition-fast);
 }
 

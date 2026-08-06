@@ -432,7 +432,19 @@ textarea.form-control {
     margin-bottom: 0;
   }
   .sidebar-footer {
-    display: none;
+    display: flex;
+    align-items: center;
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0.25rem;
+  }
+  .btn-logout {
+    padding: 0.45rem 0.85rem;
+    font-size: 0.82rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    width: auto;
   }
   .sidebar-menu {
     flex-direction: row;
