@@ -707,91 +707,89 @@
     </div>
   </div>
 
-  <!-- MODAL: DIGITALIZADOR DE DOCUMENTOS (SCANNER) -->
+  <!-- MODAL: DIGITALIZADOR DE DOCUMENTOS (WHATSAPP SCANNER STYLE) -->
   <div class="modal-backdrop" id="modal-scanner" style="display: none;">
     <div class="modal-container scanner-modal-container">
-      <div class="modal-header">
-        <span class="modal-title">📷 Digitalizador de Documentos em PDF</span>
-        <button class="modal-close" id="scanner-btn-close">&times;</button>
+      <!-- FLOATING HEADER WITH CLOSE BUTTON AND FILTER BADGE -->
+      <div class="scanner-wa-header">
+        <button type="button" class="scanner-wa-close-btn" id="scanner-btn-close" title="Fechar Digitalizador">✕</button>
+        <span class="scanner-wa-mode-pill" id="scanner-filter-label-pill">Documento P&B</span>
+        <div style="width: 44px;"></div> <!-- Spacer para centralização -->
       </div>
 
-      <div class="modal-body" style="display: flex; flex-direction: column; gap: 0.75rem;">
-        <!-- VIEWFINDER E PRÉ-VISUALIZAÇÃO DA PÁGINA ATIVA -->
-        <div class="scanner-viewfinder-wrapper">
-          <!-- Câmera ao Vivo (WebRTC) -->
-          <div id="scanner-webrtc-container" style="width: 100%; height: 100%; position: relative;">
-            <video id="scanner-video-feed" class="scanner-video" autoplay playsinline muted></video>
-            <div class="scanner-frame-overlay">
-              <span class="scanner-frame-guide">Enquadre o croqui / papel no centro</span>
+      <!-- VIEWFINDER E PRÉ-VISUALIZAÇÃO DA PÁGINA ATIVA -->
+      <div class="scanner-viewfinder-wrapper">
+        <!-- Câmera ao Vivo (WebRTC) -->
+        <div id="scanner-webrtc-container" style="width: 100%; height: 100%; position: relative;">
+          <video id="scanner-video-feed" class="scanner-video" autoplay playsinline muted></video>
+
+          <!-- GREEN HIGHLIGHT POLYGON / BOX OVERLAY (WHATSAPP STYLE) -->
+          <div class="scanner-wa-green-overlay" id="scanner-green-box"></div>
+        </div>
+
+        <!-- Captura Nativa / Fallback Celular -->
+        <div id="scanner-native-container" style="display: none; text-align: center; color: #fff; padding: 2rem;">
+          <div style="font-size: 3.5rem; margin-bottom: 0.5rem;">📸</div>
+          <p style="font-size: 0.95rem; margin-bottom: 1.25rem;">Use a câmera do seu celular para digitalizar o documento.</p>
+          <button type="button" class="btn-primary" id="scanner-btn-add-native" style="padding: 0.7rem 1.5rem; border-radius: 24px; font-weight: 600;">
+            📷 Abrir Câmera do Celular
+          </button>
+          <input type="file" id="scanner-native-input" accept="image/*" capture="environment" style="display: none;" multiple>
+        </div>
+
+        <!-- Pré-visualização da Foto Capturada (Canvas) -->
+        <canvas id="scanner-active-preview-canvas" class="scanner-canvas-preview" style="display: none;"></canvas>
+      </div>
+
+      <!-- BARRA INFERIOR DE CONTROLES DO WHATSAPP -->
+      <div class="scanner-wa-bottom-bar">
+        <!-- BARRA DE MINIATURAS E CONCLUSÃO DO PDF (EXIBIDA QUANDO HÁ PÁGINAS) -->
+        <div class="scanner-wa-footer-strip" id="scanner-footer-strip" style="display: none;">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div class="scanner-carousel-container" id="scanner-pages-carousel" style="padding: 0; margin: 0; border: none;">
+              <!-- Miniaturas das páginas -->
             </div>
+            <span style="font-size: 0.85rem; font-weight: 600; color: #fff;" id="scanner-page-counter">
+              1 página
+            </span>
           </div>
 
-          <!-- Captura Nativa / Fallback Celular -->
-          <div id="scanner-native-container" style="display: none; text-align: center; color: #fff; padding: 2rem;">
-            <div style="font-size: 3rem; margin-bottom: 0.5rem;">📸</div>
-            <p style="font-size: 0.95rem; margin-bottom: 1rem;">Use a câmera do seu celular ou escolha uma imagem da galeria.</p>
-            <button type="button" class="btn-primary" id="scanner-btn-add-native" style="padding: 0.6rem 1.25rem;">
-              📷 Abrir Câmera do Celular
-            </button>
-            <input type="file" id="scanner-native-input" accept="image/*" capture="environment" style="display: none;" multiple>
-          </div>
-
-          <!-- Pré-visualização da Foto Capturada (Canvas) -->
-          <canvas id="scanner-active-preview-canvas" class="scanner-canvas-preview" style="display: none;"></canvas>
-        </div>
-
-        <!-- BARRA DE FERRAMENTAS E FILTROS DA PÁGINA ATIVA -->
-        <div class="scanner-toolbar">
-          <div class="scanner-filter-group">
-            <button type="button" class="btn-filter-tag active" id="scanner-filter-bw" title="Filtro P&B Alto Contraste para Documento">
-              📄 Documento P&B
-            </button>
-            <button type="button" class="btn-filter-tag" id="scanner-filter-gray" title="Tons de Cinza">
-              📑 Tons de Cinza
-            </button>
-            <button type="button" class="btn-filter-tag" id="scanner-filter-original" title="Foto Original">
-              🖼️ Original
-            </button>
-          </div>
-
-          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-            <button type="button" class="btn-secondary" id="scanner-btn-rotate" title="Girar 90°" style="padding: 0.4rem 0.75rem; font-size: 0.85rem;">
-              🔄 Girar 90°
-            </button>
-            <button type="button" class="btn-secondary" id="scanner-btn-delete-page" title="Excluir Página Atual" style="padding: 0.4rem 0.75rem; font-size: 0.85rem; color: var(--danger);">
-              🗑️ Excluir Página
-            </button>
-          </div>
-        </div>
-
-        <!-- CONTADOR E CARROSSEL DE MÚLTIPLAS PÁGINAS -->
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.25rem;">
-          <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-main);" id="scanner-page-counter">
-            Página 0 de 0
-          </span>
           <div style="display: flex; gap: 0.5rem;">
-            <button type="button" class="btn-secondary" id="scanner-btn-add-camera" style="padding: 0.35rem 0.75rem; font-size: 0.82rem;">
-              ➕ Adicionar Outra Página
+            <button type="button" class="btn-secondary" id="scanner-btn-rotate" title="Girar Página" style="padding: 0.4rem 0.65rem; font-size: 0.8rem; background: rgba(255,255,255,0.15); color: #fff; border: none;">
+              🔄 Girar
             </button>
-            <button type="button" class="btn-secondary" id="scanner-btn-toggle-camera" title="Alternar Câmera" style="padding: 0.35rem 0.75rem; font-size: 0.82rem;">
-              📷 Trocar Câmera
+            <button type="button" class="btn-secondary" id="scanner-btn-delete-page" title="Excluir Página" style="padding: 0.4rem 0.65rem; font-size: 0.8rem; background: rgba(239, 68, 68, 0.2); color: #f87171; border: none;">
+              🗑️
+            </button>
+            <button type="button" class="btn-primary" id="scanner-btn-finish-pdf" style="padding: 0.45rem 1rem; font-size: 0.85rem; border-radius: 20px; font-weight: 600;">
+              ✅ Concluir PDF
             </button>
           </div>
         </div>
 
-        <div class="scanner-carousel-container" id="scanner-pages-carousel">
-          <!-- Miniaturas das páginas renderizadas dinamicamente pelo JS -->
-        </div>
-      </div>
+        <!-- CONTROLES SECUNDÁRIOS: FLASH, FILTROS E OBTURADOR -->
+        <div class="scanner-wa-actions-row">
+          <!-- BOTAO FLASH -->
+          <div class="wa-action-item" id="scanner-action-flash">
+            <div class="wa-action-circle" id="scanner-flash-icon">⚡</div>
+            <span>Flash</span>
+          </div>
 
-      <div class="modal-footer" style="justify-content: space-between;">
-        <button type="button" class="btn-secondary" id="scanner-btn-close">Cancelar</button>
-        <button type="button" class="btn-primary" id="scanner-btn-capture" style="background-color: var(--warning-dark);">
-          📸 Capturar Foto
-        </button>
-        <button type="button" class="btn-primary" id="scanner-btn-finish-pdf" disabled>
-          ✅ Finalizar e Usar PDF
-        </button>
+          <!-- BOTAO FILTROS -->
+          <div class="wa-action-item" id="scanner-action-filters">
+            <div class="wa-action-circle active" id="scanner-filter-icon">🎨</div>
+            <span>Filtros</span>
+          </div>
+
+          <!-- BOTAO OBTURADOR / CAMERA -->
+          <div class="wa-action-item" id="scanner-action-toggle-camera">
+            <div class="wa-action-circle" id="scanner-camera-icon">📸</div>
+            <span>Obturador</span>
+          </div>
+        </div>
+
+        <!-- BOTAO PRINCIPAL CIRCULAR BRANCO DE DISPARO (SHUTTER) -->
+        <button type="button" class="scanner-wa-shutter-btn" id="scanner-btn-capture" title="Digitalizar Documento"></button>
       </div>
     </div>
   </div>

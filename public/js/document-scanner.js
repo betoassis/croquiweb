@@ -1,41 +1,41 @@
 /**
- * CROQUI WEB - DOCUMENT SCANNER MODULE
- * Digitalizador de Documentos em PDF para Celulares, Tablets e Desktops
+ * CROQUI WEB - DOCUMENT SCANNER MODULE (WHATSAPP STYLE)
+ * Digitalizador de Documentos em PDF estilo WhatsApp para Celulares e Desktops
  */
 
 window.DocumentScannerApp = (function() {
-  let pages = []; // Elementos de imagem ou canvas de cada página
-  let currentTargetInputId = null; // ID do input que receberá o PDF gerado ('upload-pdf' ou 'replace-pdf')
+  let pages = []; // Elementos de imagem ou canvas de cada página digitalizada
+  let currentTargetInputId = null; // ID do input de formulário que receberá o PDF ('upload-pdf' ou 'replace-pdf')
   let currentTargetBadgeId = null; // ID do container de badge de arquivo digitalizado
   let activeStream = null; // Stream da câmera WebRTC
-  let currentFilter = 'bw'; // 'bw' (Documento P&B), 'gray' (Tons de cinza), 'original' (Colorido)
+  let currentFilter = 'bw'; // 'bw' (Documento P&B), 'original' (Cor), 'gray' (Tons de cinza)
   let currentFacingMode = 'environment'; // 'environment' (traseira) ou 'user' (frontal)
+  let isFlashOn = false; // Estado da lanterna/flash
+  let activePageIndex = 0;
 
-  // Elementos do DOM do Modal do Digitalizador
+  // DOM Getters para os Elementos do Scanner estilo WhatsApp
   const el = {
     modal: () => document.getElementById('modal-scanner'),
     videoFeed: () => document.getElementById('scanner-video-feed'),
-    videoCanvas: () => document.getElementById('scanner-video-canvas'),
     fileInputNative: () => document.getElementById('scanner-native-input'),
     pagesCarousel: () => document.getElementById('scanner-pages-carousel'),
     pageCounter: () => document.getElementById('scanner-page-counter'),
     activePreviewCanvas: () => document.getElementById('scanner-active-preview-canvas'),
-    btnFilterBw: () => document.getElementById('scanner-filter-bw'),
-    btnFilterGray: () => document.getElementById('scanner-filter-gray'),
-    btnFilterOriginal: () => document.getElementById('scanner-filter-original'),
+    filterPill: () => document.getElementById('scanner-filter-label-pill'),
     btnRotate: () => document.getElementById('scanner-btn-rotate'),
     btnDeletePage: () => document.getElementById('scanner-btn-delete-page'),
-    btnAddPageCamera: () => document.getElementById('scanner-btn-add-camera'),
     btnAddPageNative: () => document.getElementById('scanner-btn-add-native'),
     btnCaptureWebRTC: () => document.getElementById('scanner-btn-capture'),
-    btnToggleCamera: () => document.getElementById('scanner-btn-toggle-camera'),
     btnFinishPdf: () => document.getElementById('scanner-btn-finish-pdf'),
     btnClose: () => document.getElementById('scanner-btn-close'),
     webRtcContainer: () => document.getElementById('scanner-webrtc-container'),
-    nativeContainer: () => document.getElementById('scanner-native-container')
+    nativeContainer: () => document.getElementById('scanner-native-container'),
+    greenBox: () => document.getElementById('scanner-green-box'),
+    footerStrip: () => document.getElementById('scanner-footer-strip'),
+    actionFlash: () => document.getElementById('scanner-action-flash'),
+    actionFilters: () => document.getElementById('scanner-action-filters'),
+    actionToggleCamera: () => document.getElementById('scanner-action-toggle-camera')
   };
-
-  let activePageIndex = 0;
 
   function init() {
     setupListeners();
@@ -43,7 +43,6 @@ window.DocumentScannerApp = (function() {
 
   function setupListeners() {
     document.addEventListener('click', function(e) {
-      // Abrir scanner a partir de formulários
       if (e.target.matches('.btn-open-scanner') || e.target.closest('.btn-open-scanner')) {
         const btn = e.target.matches('.btn-open-scanner') ? e.target : e.target.closest('.btn-open-scanner');
         const inputId = btn.getAttribute('data-target-input');
@@ -52,44 +51,38 @@ window.DocumentScannerApp = (function() {
       }
     });
 
-    // Eventos dentro do modal de scanner
     const modal = el.modal();
     if (!modal) return;
 
     el.btnClose()?.addEventListener('click', closeScanner);
-    
-    // Troca de câmera WebRTC (Frontal / Traseira)
-    el.btnToggleCamera()?.addEventListener('click', function() {
+
+    // Botão Disparo Circular (Shutter)
+    el.btnCaptureWebRTC()?.addEventListener('click', captureFromWebRtc);
+
+    // Botão Ação: Alternar Câmera / Obturador
+    el.actionToggleCamera()?.addEventListener('click', function() {
       currentFacingMode = (currentFacingMode === 'environment') ? 'user' : 'environment';
       startWebRtcCamera();
     });
 
-    // Captura WebRTC (Tirar Foto da Câmera)
-    el.btnCaptureWebRTC()?.addEventListener('click', captureFromWebRtc);
+    // Botão Ação: Alternar Filtro (Cor, P&B, Grayscale)
+    el.actionFilters()?.addEventListener('click', cycleFilter);
 
-    // Entrada por arquivo nativo / Câmera do sistema
+    // Botão Ação: Flash / Lanterna
+    el.actionFlash()?.addEventListener('click', toggleFlash);
+
+    // Entrada por Câmera Nativa do Celular (Fallback)
     el.fileInputNative()?.addEventListener('change', handleNativeFileSelect);
     el.btnAddPageNative()?.addEventListener('click', function() {
       const input = el.fileInputNative();
       if (input) input.click();
     });
 
-    // Botões de Filtros
-    el.btnFilterBw()?.addEventListener('click', () => setFilter('bw'));
-    el.btnFilterGray()?.addEventListener('click', () => setFilter('gray'));
-    el.btnFilterOriginal()?.addEventListener('click', () => setFilter('original'));
-
     // Rotação de Página
     el.btnRotate()?.addEventListener('click', rotateActivePage);
 
     // Deletar Página
     el.btnDeletePage()?.addEventListener('click', deleteActivePage);
-
-    // Adicionar mais páginas via câmera
-    el.btnAddPageCamera()?.addEventListener('click', function() {
-      showWebRtcContainer();
-      startWebRtcCamera();
-    });
 
     // Finalizar PDF
     el.btnFinishPdf()?.addEventListener('click', generatePdfAndAttach);
@@ -101,15 +94,17 @@ window.DocumentScannerApp = (function() {
     pages = [];
     activePageIndex = 0;
     currentFilter = 'bw';
+    isFlashOn = false;
 
-    updatePagesCarousel();
+    updateFilterUI();
+    updateFooterStripUI();
+
     const modal = el.modal();
     if (modal) {
       modal.classList.add('active');
       modal.style.display = 'flex';
     }
 
-    // Tentar iniciar câmera WebRTC por padrão, ou oferecer modo nativo em caso de falha
     showWebRtcContainer();
     startWebRtcCamera();
   }
@@ -124,18 +119,25 @@ window.DocumentScannerApp = (function() {
   }
 
   function showWebRtcContainer() {
+    stopWebRtcCamera();
     const webRtc = el.webRtcContainer();
     const native = el.nativeContainer();
+    const previewCanvas = el.activePreviewCanvas();
+
     if (webRtc) webRtc.style.display = 'block';
     if (native) native.style.display = 'none';
+    if (previewCanvas) previewCanvas.style.display = 'none';
   }
 
   function showPreviewContainer() {
     stopWebRtcCamera();
     const webRtc = el.webRtcContainer();
     const native = el.nativeContainer();
+    const previewCanvas = el.activePreviewCanvas();
+
     if (webRtc) webRtc.style.display = 'none';
     if (native) native.style.display = 'none';
+    if (previewCanvas) previewCanvas.style.display = 'block';
   }
 
   async function startWebRtcCamera() {
@@ -155,8 +157,7 @@ window.DocumentScannerApp = (function() {
       video.srcObject = activeStream;
       await video.play();
     } catch (err) {
-      console.warn('Câmera WebRTC não disponível ou negada. Usando seletor nativo:', err);
-      // Caso o navegador bloqueie a câmera direta ou não suporte, usar o seletor nativo
+      console.warn('Câmera WebRTC indisponível no navegador. Abrindo câmera nativa:', err);
       showNativeCaptureFallback();
     }
   }
@@ -170,17 +171,73 @@ window.DocumentScannerApp = (function() {
     if (video) video.srcObject = null;
   }
 
+  function toggleFlash() {
+    if (!activeStream) return;
+    const track = activeStream.getVideoTracks()[0];
+    if (!track) return;
+
+    const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+    if (!capabilities.torch) {
+      alert('A iluminação por flash não é suportada por esta câmera ou navegador.');
+      return;
+    }
+
+    isFlashOn = !isFlashOn;
+    track.applyConstraints({ advanced: [{ torch: isFlashOn }] })
+      .then(() => {
+        const flashIcon = document.getElementById('scanner-flash-icon');
+        if (flashIcon) {
+          flashIcon.parentElement.classList.toggle('active', isFlashOn);
+        }
+      })
+      .catch(err => console.warn('Erro ao alternar flash:', err));
+  }
+
+  function cycleFilter() {
+    const filters = ['bw', 'original', 'gray'];
+    const currentIndex = filters.indexOf(currentFilter);
+    currentFilter = filters[(currentIndex + 1) % filters.length];
+
+    if (pages.length > 0 && pages[activePageIndex]) {
+      pages[activePageIndex].filter = currentFilter;
+      renderActivePagePreview();
+    }
+    updateFilterUI();
+  }
+
+  function updateFilterUI() {
+    const pill = el.filterPill();
+    if (pill) {
+      if (currentFilter === 'bw') pill.textContent = 'Documento P&B';
+      else if (currentFilter === 'original') pill.textContent = 'Cor (Original)';
+      else if (currentFilter === 'gray') pill.textContent = 'Tons de Cinza';
+    }
+
+    const filterIcon = document.getElementById('scanner-filter-icon');
+    if (filterIcon) {
+      filterIcon.parentElement.classList.toggle('active', currentFilter !== 'original');
+    }
+  }
+
   function showNativeCaptureFallback() {
     stopWebRtcCamera();
     const webRtc = el.webRtcContainer();
     const native = el.nativeContainer();
+    const previewCanvas = el.activePreviewCanvas();
+
     if (webRtc) webRtc.style.display = 'none';
     if (native) native.style.display = 'block';
+    if (previewCanvas) previewCanvas.style.display = 'none';
   }
 
   function captureFromWebRtc() {
     const video = el.videoFeed();
-    if (!video || !video.videoWidth) return;
+    if (!video || !video.videoWidth) {
+      // Se não houver video ao vivo, abrir seletor nativo
+      const nativeInput = el.fileInputNative();
+      if (nativeInput) nativeInput.click();
+      return;
+    }
 
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth;
@@ -214,7 +271,7 @@ window.DocumentScannerApp = (function() {
       reader.readAsDataURL(file);
     });
 
-    e.target.value = ''; // Limpar input para reutilização
+    e.target.value = '';
   }
 
   function addCapturedImage(sourceCanvas) {
@@ -228,30 +285,14 @@ window.DocumentScannerApp = (function() {
 
     showPreviewContainer();
     renderActivePagePreview();
-    updatePagesCarousel();
-  }
-
-  function setFilter(filterType) {
-    currentFilter = filterType;
-    if (pages.length > 0 && pages[activePageIndex]) {
-      pages[activePageIndex].filter = filterType;
-      renderActivePagePreview();
-    }
-    updateFilterButtonsUI();
-  }
-
-  function updateFilterButtonsUI() {
-    [el.btnFilterBw(), el.btnFilterGray(), el.btnFilterOriginal()].forEach(btn => btn?.classList.remove('active'));
-    if (currentFilter === 'bw') el.btnFilterBw()?.classList.add('active');
-    if (currentFilter === 'gray') el.btnFilterGray()?.classList.add('active');
-    if (currentFilter === 'original') el.btnFilterOriginal()?.classList.add('active');
+    updateFooterStripUI();
   }
 
   function rotateActivePage() {
     if (pages.length === 0 || !pages[activePageIndex]) return;
     pages[activePageIndex].rotation = (pages[activePageIndex].rotation + 90) % 360;
     renderActivePagePreview();
-    updatePagesCarousel();
+    updateFooterStripUI();
   }
 
   function deleteActivePage() {
@@ -267,7 +308,7 @@ window.DocumentScannerApp = (function() {
     } else {
       renderActivePagePreview();
     }
-    updatePagesCarousel();
+    updateFooterStripUI();
   }
 
   function renderActivePagePreview() {
@@ -286,16 +327,13 @@ window.DocumentScannerApp = (function() {
 
     const ctx = previewCanvas.getContext('2d');
     ctx.save();
-
-    // Aplicar Rotação
     ctx.translate(destWidth / 2, destHeight / 2);
     ctx.rotate((page.rotation * Math.PI) / 180);
     ctx.drawImage(srcCanvas, -srcCanvas.width / 2, -srcCanvas.height / 2);
     ctx.restore();
 
-    // Aplicar Filtro no Canvas de Destino
     applyFilterToCanvas(previewCanvas, page.filter);
-    updateFilterButtonsUI();
+    updateFilterUI();
   }
 
   function applyFilterToCanvas(canvas, filterType) {
@@ -310,7 +348,6 @@ window.DocumentScannerApp = (function() {
       const g = data[i + 1];
       const b = data[i + 2];
 
-      // Luminosidade Grayscale
       const gray = 0.299 * r + 0.587 * g + 0.114 * b;
 
       if (filterType === 'gray') {
@@ -318,8 +355,7 @@ window.DocumentScannerApp = (function() {
         data[i + 1] = gray;
         data[i + 2] = gray;
       } else if (filterType === 'bw') {
-        // Documento P&B Alto Contraste (Threshold adaptativo para papel e croqui)
-        const v = gray > 140 ? 255 : (gray < 80 ? 0 : (gray - 80) * 4.25);
+        const v = gray > 135 ? 255 : (gray < 75 ? 0 : (gray - 75) * 4.25);
         data[i] = v;
         data[i + 1] = v;
         data[i + 2] = v;
@@ -329,13 +365,20 @@ window.DocumentScannerApp = (function() {
     ctx.putImageData(imageData, 0, 0);
   }
 
-  function updatePagesCarousel() {
+  function updateFooterStripUI() {
+    const strip = el.footerStrip();
     const carousel = el.pagesCarousel();
     const counter = el.pageCounter();
-    const finishBtn = el.btnFinishPdf();
 
-    if (counter) counter.textContent = `Página ${pages.length > 0 ? activePageIndex + 1 : 0} de ${pages.length}`;
-    if (finishBtn) finishBtn.disabled = pages.length === 0;
+    if (!strip) return;
+
+    if (pages.length === 0) {
+      strip.style.display = 'none';
+      return;
+    }
+
+    strip.style.display = 'flex';
+    if (counter) counter.textContent = `${pages.length} ${pages.length === 1 ? 'página' : 'páginas'}`;
 
     if (!carousel) return;
     carousel.innerHTML = '';
@@ -345,17 +388,16 @@ window.DocumentScannerApp = (function() {
       item.className = `scanner-page-thumb ${idx === activePageIndex ? 'active' : ''}`;
       
       const thumbCanvas = document.createElement('canvas');
-      thumbCanvas.width = 60;
-      thumbCanvas.height = 80;
+      thumbCanvas.width = 50;
+      thumbCanvas.height = 65;
       const tCtx = thumbCanvas.getContext('2d');
 
-      // Desenhar versão reduzida
       const isRot = page.rotation === 90 || page.rotation === 270;
       const sw = isRot ? page.originalCanvas.height : page.originalCanvas.width;
       const sh = isRot ? page.originalCanvas.width : page.originalCanvas.height;
 
       tCtx.save();
-      tCtx.scale(60 / sw, 80 / sh);
+      tCtx.scale(50 / sw, 65 / sh);
       if (isRot) {
         tCtx.translate(sw / 2, sh / 2);
         tCtx.rotate((page.rotation * Math.PI) / 180);
@@ -365,19 +407,13 @@ window.DocumentScannerApp = (function() {
       }
       tCtx.restore();
 
-      const label = document.createElement('span');
-      label.className = 'thumb-label';
-      label.textContent = `Pág ${idx + 1}`;
-
       item.appendChild(thumbCanvas);
-      item.appendChild(label);
-
       item.addEventListener('click', function() {
         activePageIndex = idx;
         currentFilter = pages[idx].filter || 'bw';
         showPreviewContainer();
         renderActivePagePreview();
-        updatePagesCarousel();
+        updateFooterStripUI();
       });
 
       carousel.appendChild(item);
@@ -386,23 +422,22 @@ window.DocumentScannerApp = (function() {
 
   async function generatePdfAndAttach() {
     if (pages.length === 0) {
-      alert('Tire ou selecione ao menos uma foto do croqui/documento.');
+      alert('Tire ao menos uma foto do documento antes de concluir.');
       return;
     }
 
     const finishBtn = el.btnFinishPdf();
     if (finishBtn) {
       finishBtn.disabled = true;
-      finishBtn.textContent = '⚡ Gerando PDF...';
+      finishBtn.textContent = 'Gerando PDF...';
     }
 
     try {
       const { jsPDF } = window.jspdf || {};
       if (!jsPDF) {
-        throw new Error('Biblioteca jsPDF não carregada. Verifique a conexão com a internet.');
+        throw new Error('Biblioteca jsPDF não carregada.');
       }
 
-      // Criar documento PDF A4 em milímetros
       const doc = new jsPDF({
         orientation: 'p',
         unit: 'mm',
@@ -410,13 +445,12 @@ window.DocumentScannerApp = (function() {
         compress: true
       });
 
-      const pdfWidth = doc.internal.pageSize.getWidth(); // 210mm
-      const pdfHeight = doc.internal.pageSize.getHeight(); // 297mm
+      const pdfWidth = doc.internal.pageSize.getWidth();
+      const pdfHeight = doc.internal.pageSize.getHeight();
 
       for (let i = 0; i < pages.length; i++) {
         if (i > 0) doc.addPage();
 
-        // Renderizar página completa em canvas temporário para exportação JPEG
         const tempCanvas = document.createElement('canvas');
         const page = pages[i];
         const srcCanvas = page.originalCanvas;
@@ -435,8 +469,6 @@ window.DocumentScannerApp = (function() {
         applyFilterToCanvas(tempCanvas, page.filter || 'bw');
 
         const imgData = tempCanvas.toDataURL('image/jpeg', 0.85);
-
-        // Manter proporção no A4
         const imgRatio = tempCanvas.width / tempCanvas.height;
         let renderW = pdfWidth;
         let renderH = pdfWidth / imgRatio;
@@ -452,33 +484,28 @@ window.DocumentScannerApp = (function() {
         doc.addImage(imgData, 'JPEG', marginX, marginY, renderW, renderH);
       }
 
-      // Obter arquivo PDF em Blob
       const pdfBlob = doc.output('blob');
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       const fileName = `Croqui_Digitalizado_${timestamp}.pdf`;
       const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
 
-      // Anexar ao formulário de destino via DataTransfer
       if (currentTargetInputId) {
         const inputEl = document.getElementById(currentTargetInputId);
         if (inputEl) {
           const dataTransfer = new DataTransfer();
           dataTransfer.items.add(pdfFile);
           inputEl.files = dataTransfer.files;
-
-          // Disparar evento de alteração
           inputEl.dispatchEvent(new Event('change', { bubbles: true }));
         }
       }
 
-      // Exibir badge visual de sucesso no formulário
       if (currentTargetBadgeId) {
         const badgeEl = document.getElementById(currentTargetBadgeId);
         if (badgeEl) {
           const sizeKb = (pdfFile.size / 1024).toFixed(0);
           badgeEl.innerHTML = `
             <div class="scanned-pdf-badge">
-              <span>📄 <strong>${fileName}</strong> (${pages.length} ${pages.length === 1 ? 'págs' : 'págs'} - ${sizeKb} KB)</span>
+              <span>📄 <strong>${fileName}</strong> (${pages.length} ${pages.length === 1 ? 'pág' : 'págs'} - ${sizeKb} KB)</span>
               <span class="badge-tag">Digitalizado via Câmera</span>
             </div>
           `;
@@ -493,7 +520,7 @@ window.DocumentScannerApp = (function() {
     } finally {
       if (finishBtn) {
         finishBtn.disabled = false;
-        finishBtn.textContent = '✅ Finalizar e Usar PDF';
+        finishBtn.textContent = '✅ Concluir PDF';
       }
     }
   }
