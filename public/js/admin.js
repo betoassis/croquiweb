@@ -556,8 +556,17 @@ window.AdminApp = (function() {
     const currentB = selectBairro.value;
     const currentR = selectRegiao.value;
 
-    const bairros = Array.from(new Set(data.map(c => c.bairro))).sort();
-    const regioes = Array.from(new Set(data.map(c => c.regiao))).sort();
+    const defaultRegioes = [
+      "Região Norte",
+      "Região Nordeste",
+      "Região Sul",
+      "Região Sudeste",
+      "Região Leste",
+      "Região Oeste",
+      "Região Centro"
+    ];
+    const dataRegioes = data.map(c => c.regiao).filter(Boolean);
+    const regioes = Array.from(new Set([...defaultRegioes, ...dataRegioes])).sort();
 
     selectBairro.innerHTML = `<option value="">Todos os Bairros (${bairros.length})</option>` +
       bairros.map(b => `<option value="${b}">${b}</option>`).join('');
