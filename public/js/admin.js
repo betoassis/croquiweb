@@ -728,7 +728,21 @@ window.AdminApp = (function() {
     document.getElementById('edit-id').value = croqui.id;
     document.getElementById('edit-bairro').value = croqui.bairro;
     document.getElementById('edit-sisloc').value = croqui.sisloc || '';
-    document.getElementById('edit-regiao').value = croqui.regiao;
+    
+    const editRegiaoSelect = document.getElementById('edit-regiao');
+    if (editRegiaoSelect) {
+      if (croqui.regiao) {
+        const exists = Array.from(editRegiaoSelect.options).some(opt => opt.value === croqui.regiao);
+        if (!exists) {
+          const customOpt = document.createElement('option');
+          customOpt.value = croqui.regiao;
+          customOpt.textContent = croqui.regiao;
+          editRegiaoSelect.appendChild(customOpt);
+        }
+      }
+      editRegiaoSelect.value = croqui.regiao || '';
+    }
+
     document.getElementById('edit-quarteirao').value = croqui.quarteirao;
     document.getElementById('edit-observacoes').value = croqui.observacoes || '';
 
