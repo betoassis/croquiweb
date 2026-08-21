@@ -8,6 +8,7 @@ const db = require('../database/db');
 const { isSupabaseConfigured, uploadPdfToStorage, deletePdfFromStorage } = require('../database/supabaseClient');
 const { authenticateAdmin } = require('../middleware/auth');
 const { upload } = require('../middleware/upload');
+const { compressPdfBuffer } = require('../middleware/pdfCompressor');
 
 // Helper to remove physical local file safely
 function removeFile(relativePath) {
@@ -118,9 +119,16 @@ router.post('/', authenticateAdmin, upload.single('pdf'), async (req, res) => {
       return res.status(400).json({ error: 'É necessário anexar um arquivo PDF para o croqui.' });
     }
 
-    const fileBuffer = req.file.buffer || (req.file.path ? fs.readFileSync(req.file.path) : null);
+    const rawBuffer = req.file.buffer || (req.file.path ? fs.readFileSync(req.file.path) : null);
     const fileName = req.file.originalname;
-    const fileSize = req.file.size;
+    let fileBuffer = rawBuffer;
+    let fileSize = req.file.size;
+
+    if (rawBuffer) {
+      const compRes = await compressPdfBuffer(rawBuffer);
+      fileBuffer = compRes.buffer;
+      fileSize = compRes.newSize;
+    }
     let filePath = '';
 
     if (isSupabaseConfigured() && fileBuffer) {
@@ -215,9 +223,16 @@ router.post('/:id/replace', authenticateAdmin, upload.single('pdf'), async (req,
       return res.status(400).json({ error: 'Selecione um novo arquivo PDF para substituição.' });
     }
 
-    const fileBuffer = req.file.buffer || (req.file.path ? fs.readFileSync(req.file.path) : null);
+    const rawBuffer = req.file.buffer || (req.file.path ? fs.readFileSync(req.file.path) : null);
     const fileName = req.file.originalname;
-    const fileSize = req.file.size;
+    let fileBuffer = rawBuffer;
+    let fileSize = req.file.size;
+
+    if (rawBuffer) {
+      const compRes = await compressPdfBuffer(rawBuffer);
+      fileBuffer = compRes.buffer;
+      fileSize = compRes.newSize;
+    }
     let filePath = '';
 
     if (isSupabaseConfigured() && fileBuffer) {

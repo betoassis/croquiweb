@@ -908,19 +908,37 @@ window.DocumentScannerApp = (function() {
         const srcCanvas = page.originalCanvas;
         const isRot = page.rotation === 90 || page.rotation === 270;
 
-        tempCanvas.width = isRot ? srcCanvas.height : srcCanvas.width;
-        tempCanvas.height = isRot ? srcCanvas.width : srcCanvas.height;
+        const rawW = isRot ? srcCanvas.height : srcCanvas.width;
+        const rawH = isRot ? srcCanvas.width : srcCanvas.height;
+
+        // Limita a dimensão máxima (1440px) para evitar PDFs gigantescos sem perder legibilidade
+        const maxDim = 1440;
+        let targetW = rawW;
+        let targetH = rawH;
+
+        if (Math.max(rawW, rawH) > maxDim) {
+          const scale = maxDim / Math.max(rawW, rawH);
+          targetW = Math.round(rawW * scale);
+          targetH = Math.round(rawH * scale);
+        }
+
+        tempCanvas.width = targetW;
+        tempCanvas.height = targetH;
 
         const ctx = tempCanvas.getContext('2d');
         ctx.save();
-        ctx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
+        ctx.translate(targetW / 2, targetH / 2);
         ctx.rotate((page.rotation * Math.PI) / 180);
-        ctx.drawImage(srcCanvas, -srcCanvas.width / 2, -srcCanvas.height / 2);
+
+        const drawW = isRot ? targetH : targetW;
+        const drawH = isRot ? targetW : targetH;
+        ctx.drawImage(srcCanvas, -drawW / 2, -drawH / 2, drawW, drawH);
         ctx.restore();
 
         applyFilterToCanvas(tempCanvas, page.filter || 'bw');
 
-        const imgData = tempCanvas.toDataURL('image/jpeg', 0.85);
+        // Qualidade JPEG 0.72 otimizada para croquis e documentos
+        const imgData = tempCanvas.toDataURL('image/jpeg', 0.72);
         const imgRatio = tempCanvas.width / tempCanvas.height;
         let renderW = pdfWidth;
         let renderH = pdfWidth / imgRatio;
