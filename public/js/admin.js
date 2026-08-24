@@ -568,6 +568,9 @@ window.AdminApp = (function() {
     const dataRegioes = data.map(c => c.regiao).filter(Boolean);
     const regioes = Array.from(new Set([...defaultRegioes, ...dataRegioes])).sort();
 
+    const dataBairros = data.map(c => c.bairro ? c.bairro.trim() : '').filter(Boolean);
+    const bairros = Array.from(new Set(dataBairros)).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
     selectBairro.innerHTML = `<option value="">Todos os Bairros (${bairros.length})</option>` +
       bairros.map(b => `<option value="${b}">${b}</option>`).join('');
 
