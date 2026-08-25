@@ -13,6 +13,7 @@
 
   <!-- External Libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body>
 
@@ -660,15 +661,33 @@
       </div>
       <div class="pdf-toolbar">
         <div class="pdf-toolbar-group">
-          <span>Tamanho: <strong id="pdf-viewer-size">--</strong></span>
+          <div class="pdf-zoom-controls">
+            <button id="btn-pdf-zoom-out" class="btn-pdf-tool" title="Reduzir zoom (-)" aria-label="Reduzir zoom">➖</button>
+            <span id="pdf-zoom-level" class="pdf-zoom-badge">100%</span>
+            <button id="btn-pdf-zoom-in" class="btn-pdf-tool" title="Ampliar zoom (+)" aria-label="Ampliar zoom">➕</button>
+            <button id="btn-pdf-zoom-reset" class="btn-pdf-tool" title="Ajustar à tela" aria-label="Ajustar à tela">🔍 Fit</button>
+          </div>
+          <div class="pdf-page-controls" id="pdf-page-controls" style="display: none;">
+            <button id="btn-pdf-prev-page" class="btn-pdf-tool" title="Página Anterior">◀</button>
+            <span id="pdf-page-num" class="pdf-page-badge">1/1</span>
+            <button id="btn-pdf-next-page" class="btn-pdf-tool" title="Próxima Página">▶</button>
+          </div>
         </div>
         <div class="pdf-toolbar-group">
-          <a id="btn-pdf-modal-download" href="#" class="btn-pdf-tool" style="text-decoration: none;">📥 Baixar PDF</a>
-          <button id="btn-pdf-modal-qr" class="btn-pdf-tool">📲 Gerar QR Code</button>
+          <span class="pdf-size-info">Tamanho: <strong id="pdf-viewer-size">--</strong></span>
+          <a id="btn-pdf-modal-download" href="#" class="btn-pdf-tool btn-pdf-primary" style="text-decoration: none;">📥 Baixar PDF</a>
+          <button id="btn-pdf-modal-qr" class="btn-pdf-tool">📲 QR Code</button>
         </div>
       </div>
-      <div class="pdf-viewer-body modal-body">
-        <iframe id="pdf-iframe" class="pdf-frame-container" src="about:blank"></iframe>
+      <div class="pdf-viewer-body modal-body" id="pdf-canvas-container">
+        <div id="pdf-loading-spinner" class="pdf-spinner">
+          <div class="spinner"></div>
+          <span>Carregando croqui...</span>
+        </div>
+        <div id="pdf-viewport-wrapper" class="pdf-viewport-wrapper">
+          <canvas id="pdf-canvas"></canvas>
+        </div>
+        <iframe id="pdf-iframe" class="pdf-frame-container" src="about:blank" style="display: none;"></iframe>
       </div>
     </div>
   </div>
