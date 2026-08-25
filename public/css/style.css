@@ -1053,7 +1053,7 @@ html, body {
   bottom: 2rem;
   right: 2rem;
   z-index: 1000;
-  display: none; /* Escondido por padrão, visível apenas quando autenticado */
+  display: none; /* Escondido por padrão, visível apenas na Área Administrativa para Administradores */
   flex-direction: column;
   align-items: flex-end;
   gap: 0.75rem;

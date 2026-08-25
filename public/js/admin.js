@@ -108,8 +108,10 @@ window.AdminApp = (function() {
   function updateFabVisibility() {
     const fab = document.getElementById('fab-container');
     if (!fab) return;
-    const activeModal = document.querySelector('.modal.active');
-    if (token && currentUser && !activeModal) {
+    const adminView = el.adminView ? el.adminView() : document.getElementById('admin-view');
+    const isAdminViewVisible = adminView && adminView.style.display !== 'none';
+    const activeModal = document.querySelector('.modal-backdrop.active, .modal.active');
+    if (token && currentUser && currentUser.role === 'admin' && isAdminViewVisible && !activeModal) {
       fab.style.display = 'flex';
     } else {
       fab.style.display = 'none';
@@ -324,6 +326,7 @@ window.AdminApp = (function() {
 
     loadDashboardStats();
     loadAdminCroquisTable();
+    updateFabVisibility();
   }
 
   function showPublicView() {
@@ -345,6 +348,7 @@ window.AdminApp = (function() {
     document.getElementById('nav-public')?.classList.add('active');
 
     if (window.PublicApp) window.PublicApp.loadCroquis();
+    updateFabVisibility();
   }
 
   function switchSubTab(tabName) {
