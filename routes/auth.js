@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const db = require('../database/db');
-const { isValidCPF, formatCPF } = require('../middleware/cpfValidator');
+const { isValidCPF, formatCPF, cleanCPFString } = require('../middleware/cpfValidator');
 const { JWT_SECRET, authenticateAdmin } = require('../middleware/auth');
 
 // POST /api/auth/register - Cadastro de Usuário Público (Status: Pending)

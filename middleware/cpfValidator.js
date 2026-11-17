@@ -2,11 +2,18 @@
  * Utilitário de Validação de CPF com o algoritmo matemático oficial dos dígitos verificadores (Módulo 11).
  */
 
+/**
+ * Remove caracteres não numéricos de uma string de CPF
+ */
+function cleanCPFString(cpfInput) {
+  return String(cpfInput || '').replace(/\D/g, '');
+}
+
 function isValidCPF(cpfInput) {
   if (!cpfInput) return false;
 
   // Remove caracteres não numéricos
-  const cleanCPF = String(cpfInput).replace(/\D/g, '');
+  const cleanCPF = cleanCPFString(cpfInput);
 
   // O CPF deve conter exatamente 11 dígitos
   if (cleanCPF.length !== 11) return false;
@@ -41,12 +48,13 @@ function isValidCPF(cpfInput) {
  * Formata um CPF numérico para a máscara padrão 000.000.000-00
  */
 function formatCPF(cpfInput) {
-  const clean = String(cpfInput || '').replace(/\D/g, '');
+  const clean = cleanCPFString(cpfInput);
   if (clean.length !== 11) return cpfInput;
   return clean.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
 }
 
 module.exports = {
   isValidCPF,
-  formatCPF
+  formatCPF,
+  cleanCPFString
 };

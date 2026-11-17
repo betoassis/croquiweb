@@ -2,7 +2,8 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const db = require('../database/db');
-const { isValidCPF } = require('../middleware/cpfValidator');
+const app = require('../server');
+const { isValidCPF, formatCPF, cleanCPFString } = require('../middleware/cpfValidator');
 
 async function runTests() {
   console.log('🧪 Iniciando testes de integração da API do Croqui Web (Dual-Mode DB & Gestão de Usuários)...\n');
@@ -85,25 +86,75 @@ async function runTests() {
 
     // Test 6: Redefinição de Senha por Validação de CPF e Ano de Nascimento
     console.log('\nTest 6: Testando Redefinição de Senha via CPF e Ano de Nascimento...');
+    console.assert(cleanCPFString('514.134.346-49') === '51413434649', 'cleanCPFString deve remover caracteres não numéricos');
+
     const pwdTestUser = 'reset_test_' + Date.now();
+    const resetCpf = genCpf();
     const createdForReset = await db.createUserAsync({
       name: 'Agente Reset',
       username: pwdTestUser,
       password: 'oldPassword123',
-      cpf: genCpf(),
+      cpf: resetCpf,
       birthYear: 1990,
       role: 'public',
       status: 'approved'
     });
 
-    const resetSuccess = await db.updateUserPasswordAsync(createdForReset.id, 'newPassword456');
-    console.assert(resetSuccess !== null, 'Senha deve ser atualizada com sucesso');
+    const postJson = (port, routePath, payload) => new Promise((resolve, reject) => {
+      const body = JSON.stringify(payload);
+      const req = http.request({
+        hostname: '127.0.0.1',
+        port,
+        path: routePath,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body)
+        }
+      }, (res) => {
+        let raw = '';
+        res.on('data', chunk => { raw += chunk; });
+        res.on('end', () => {
+          resolve({ statusCode: res.statusCode, body: JSON.parse(raw) });
+        });
+      });
+      req.on('error', reject);
+      req.write(body);
+      req.end();
+    });
 
-    const verifyNewPass = await db.verifyAdminPasswordAsync(pwdTestUser, 'newPassword456');
-    console.assert(verifyNewPass === true, 'Nova senha deve ser aceita na verificação de autenticação');
+    const server = await new Promise((resolve) => {
+      const s = app.listen(0, '127.0.0.1', () => resolve(s));
+    });
 
-    await db.deleteUserAsync(createdForReset.id);
-    console.log('✅ OK: Redefinição de senha validada com sucesso.');
+    try {
+      const { port } = server.address();
+
+      // Testa rejeição com ano de nascimento incorreto (deve retornar 400, não 500)
+      const mismatchRes = await postJson(port, '/api/auth/reset-password', {
+        username: pwdTestUser,
+        cpf: formatCPF(resetCpf),
+        birthYear: '1989',
+        newPassword: 'newPassword456'
+      });
+      console.assert(mismatchRes.statusCode === 400, `Ano incorreto deve retornar HTTP 400, recebeu ${mismatchRes.statusCode}`);
+
+      // Testa redefinição válida com CPF formatado (000.000.000-00)
+      const resetRes = await postJson(port, '/api/auth/reset-password', {
+        username: pwdTestUser,
+        cpf: formatCPF(resetCpf),
+        birthYear: '1990',
+        newPassword: 'newPassword456'
+      });
+      console.assert(resetRes.statusCode === 200, `Redefinição válida deve retornar HTTP 200, recebeu ${resetRes.statusCode}: ${JSON.stringify(resetRes.body)}`);
+
+      const verifyNewPass = await db.verifyAdminPasswordAsync(pwdTestUser, 'newPassword456');
+      console.assert(verifyNewPass === true, 'Nova senha deve ser aceita na verificação de autenticação');
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+      await db.deleteUserAsync(createdForReset.id);
+    }
+    console.log('✅ OK: Redefinição de senha via POST /api/auth/reset-password validada com sucesso.');
 
     console.log('\n🎉 TODOS OS TESTES PASSARAM COM SUCESSO!');
   } catch (err) {
