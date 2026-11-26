@@ -5,6 +5,16 @@ const db = require('../database/db');
 const { isValidCPF, formatCPF, cleanCPFString } = require('../middleware/cpfValidator');
 const { JWT_SECRET, authenticateAdmin } = require('../middleware/auth');
 
+function handleAuthError(res, err, fallbackMessage, logLabel) {
+  console.error(logLabel, err);
+  if (err && err.code === 'DB_UNAVAILABLE') {
+    return res.status(503).json({
+      error: 'Banco de dados temporariamente indisponível. Se o servidor esteve inativo, aguarde alguns minutos e tente novamente.'
+    });
+  }
+  return res.status(500).json({ error: fallbackMessage });
+}
+
 // POST /api/auth/register - Cadastro de Usuário Público (Status: Pending)
 router.post('/register', async (req, res) => {
   try {
@@ -59,8 +69,7 @@ router.post('/register', async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('Erro ao registrar usuário:', err);
-    return res.status(500).json({ error: 'Erro interno ao realizar cadastro.' });
+    return handleAuthError(res, err, 'Erro interno ao realizar cadastro.', 'Erro ao registrar usuário:');
   }
 });
 
@@ -121,8 +130,7 @@ router.post('/login', async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('Erro na autenticação:', err);
-    return res.status(500).json({ error: 'Erro interno ao autenticar usuário.' });
+    return handleAuthError(res, err, 'Erro interno ao autenticar usuário.', 'Erro na autenticação:');
   }
 });
 
@@ -180,8 +188,7 @@ router.post('/reset-password', async (req, res) => {
       message: 'Sua senha foi redefinida com sucesso! Você já pode efetuar o login com a nova senha.'
     });
   } catch (err) {
-    console.error('Erro na redefinição de senha:', err);
-    return res.status(500).json({ error: 'Erro interno ao redefinir a senha.' });
+    return handleAuthError(res, err, 'Erro interno ao redefinir a senha.', 'Erro na redefinição de senha:');
   }
 });
 

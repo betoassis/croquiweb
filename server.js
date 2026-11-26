@@ -7,6 +7,7 @@ const authRoutes = require('./routes/auth');
 const croquisRoutes = require('./routes/croquis');
 const statsRoutes = require('./routes/stats');
 const usersRoutes = require('./routes/users');
+const db = require('./database/db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -98,6 +99,21 @@ startxref
 ensureDemoFilesExist();
 
 // Register API Routes
+app.get('/api/health', async (req, res) => {
+  try {
+    const health = await db.checkHealthAsync();
+    return res.json(health);
+  } catch (err) {
+    console.error('Erro no health check:', err);
+    return res.status(503).json({
+      status: 'error',
+      database: 'unavailable',
+      error: 'Banco de dados temporariamente indisponível.',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/croquis', croquisRoutes);
 app.use('/api/stats', statsRoutes);

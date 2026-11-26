@@ -129,6 +129,14 @@ function cleanCPFString(cpfStr) {
   return String(cpfStr || '').replace(/\D/g, '');
 }
 
+function createDbUnavailableError(context, originalError) {
+  const err = new Error(`Banco de dados indisponível ao ${context}: ${originalError?.message || 'erro de conexão'}`);
+  err.code = 'DB_UNAVAILABLE';
+  err.status = 503;
+  err.cause = originalError;
+  return err;
+}
+
 const db = {
   isSupabase: isSupabaseConfigured,
 
@@ -138,12 +146,17 @@ const db = {
     const cleanUser = username.trim().toLowerCase();
 
     if (isSupabaseConfigured()) {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('users')
         .select('*')
         .ilike('username', cleanUser)
         .limit(1)
-        .single();
+        .maybeSingle();
+
+      if (error) {
+        console.error('Erro ao buscar usuário no Supabase:', error);
+        throw createDbUnavailableError('consultar usuário', error);
+      }
 
       if (data) {
         return {
@@ -182,12 +195,17 @@ const db = {
     const cleanCPF = cleanCPFString(cpf);
 
     if (isSupabaseConfigured()) {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('cpf', cleanCPF)
         .limit(1)
-        .single();
+        .maybeSingle();
+
+      if (error) {
+        console.error('Erro ao buscar CPF no Supabase:', error);
+        throw createDbUnavailableError('consultar CPF', error);
+      }
 
       if (data) {
         return {
@@ -869,6 +887,33 @@ const db = {
       totalViews,
       totalDownloads,
       lastUploadDate
+    };
+  },
+
+  async checkHealthAsync() {
+    if (isSupabaseConfigured()) {
+      const { error } = await supabase
+        .from('users')
+        .select('id')
+        .limit(1);
+
+      if (error) {
+        console.error('Erro no health check do Supabase:', error);
+        throw createDbUnavailableError('verificar conexão com o banco', error);
+      }
+
+      return {
+        status: 'ok',
+        database: 'supabase',
+        timestamp: new Date().toISOString()
+      };
+    }
+
+    getDb();
+    return {
+      status: 'ok',
+      database: 'local-json',
+      timestamp: new Date().toISOString()
     };
   }
 };

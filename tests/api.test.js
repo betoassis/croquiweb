@@ -1,3 +1,4 @@
+const assert = require('assert');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -155,6 +156,69 @@ async function runTests() {
       await db.deleteUserAsync(createdForReset.id);
     }
     console.log('✅ OK: Redefinição de senha via POST /api/auth/reset-password validada com sucesso.');
+
+    // Test 7: Health check e tratamento de banco indisponível (HTTP 503) vs usuário inexistente (HTTP 401)
+    console.log('\nTest 7: Testando GET /api/health e tratamento de falha de conexão no login...');
+    const requestJson = (port, method, routePath, payload) => new Promise((resolve, reject) => {
+      const body = payload ? JSON.stringify(payload) : null;
+      const headers = body
+        ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
+        : {};
+      const req = http.request({
+        hostname: '127.0.0.1',
+        port,
+        path: routePath,
+        method,
+        headers
+      }, (res) => {
+        let raw = '';
+        res.on('data', chunk => { raw += chunk; });
+        res.on('end', () => {
+          resolve({ statusCode: res.statusCode, body: JSON.parse(raw) });
+        });
+      });
+      req.on('error', reject);
+      if (body) req.write(body);
+      req.end();
+    });
+
+    const healthServer = await new Promise((resolve) => {
+      const s = app.listen(0, '127.0.0.1', () => resolve(s));
+    });
+
+    const originalGetUser = db.getUserByUsernameAsync;
+    try {
+      const { port } = healthServer.address();
+
+      const healthRes = await requestJson(port, 'GET', '/api/health');
+      assert.strictEqual(healthRes.statusCode, 200, `GET /api/health deve retornar HTTP 200, recebeu ${healthRes.statusCode}`);
+      assert.strictEqual(healthRes.body.status, 'ok', 'Health check deve retornar status "ok"');
+
+      const unknownUserRes = await requestJson(port, 'POST', '/api/auth/login', {
+        username: 'usuario_inexistente_' + Date.now(),
+        password: 'qualquer_password'
+      });
+      assert.strictEqual(unknownUserRes.statusCode, 401, `Usuário inexistente deve retornar HTTP 401, recebeu ${unknownUserRes.statusCode}`);
+      assert.ok(unknownUserRes.body.error.includes('Credenciais inválidas'), 'Deve informar credenciais inválidas para usuário inexistente');
+
+      db.getUserByUsernameAsync = async () => {
+        const err = new Error('Banco de dados indisponível ao consultar usuário: fetch failed');
+        err.code = 'DB_UNAVAILABLE';
+        err.status = 503;
+        throw err;
+      };
+
+      const unavailableRes = await requestJson(port, 'POST', '/api/auth/login', {
+        username: 'admin',
+        password: 'qualquer_password'
+      });
+      assert.strictEqual(unavailableRes.statusCode, 503, `Falha de banco deve retornar HTTP 503, recebeu ${unavailableRes.statusCode}`);
+      assert.ok(unavailableRes.body.error.includes('indisponível'), 'Deve informar que o banco de dados está temporariamente indisponível');
+    } finally {
+      db.getUserByUsernameAsync = originalGetUser;
+      await new Promise((resolve) => healthServer.close(resolve));
+    }
+    console.log('✅ OK: Health check e tratamento de erro 503 no login validados com sucesso.');
 
     console.log('\n🎉 TODOS OS TESTES PASSARAM COM SUCESSO!');
   } catch (err) {
